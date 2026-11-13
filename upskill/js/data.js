@@ -10,16 +10,16 @@ export const SKILLS = [
   { id: "story", name: "Data Storytelling", target: 3 },
 ];
 export const EMPLOYEES = [
-  { id: 1, name: "Aarav Naik", role: "Backend Developer", s: [3,2,1,2,2,4,2,1] },
+  { id: 1, name: "Jonasker Fernandes", role: "Junior Developer", s: [1,1,1,1,2,1,1,1], yoe: 1, stack: "C, C++, basic HTML/CSS", notes: "Fast learner with a strong logical foundation. Needs to move from academic C++ to building full-stack web apps and AI APIs.", target: "AI Automation Engineer" },
   { id: 2, name: "Meera Fernandes", role: "Data Analyst", s: [1,3,2,1,1,2,3,4] },
-  { id: 3, name: "Rohan D'Souza", role: "DevOps Engineer", s: [4,2,1,3,1,3,1,1] },
-  { id: 4, name: "Sana Shaikh", role: "Frontend Developer", s: [1,1,2,1,4,2,3,2] },
+  { id: 3, name: "Mavilon Coutino", role: "Systems Administrator", s: [2,1,1,4,1,3,1,1], yoe: 5, stack: "Linux, Bash, network security", notes: "Deep hardware and OS knowledge. The company needs him to pivot into cloud infrastructure and deploying scalable AI models securely.", target: "MLOps Cloud Architect" },
+  { id: 4, name: "Schneider Gracious", role: "Frontend Engineer", s: [1,1,2,1,4,2,3,2], yoe: 3, stack: "React, JavaScript, Tailwind", notes: "Excellent UI/UX skills. Needs backend database architecture and how to connect frontends to LLM streaming endpoints.", target: "Full-Stack AI Developer" },
   { id: 5, name: "Karan Prabhu", role: "QA Engineer", s: [2,1,1,2,2,2,2,1] },
   { id: 6, name: "Isha Kamat", role: "Product Manager", s: [1,2,2,1,1,1,4,3] },
   { id: 7, name: "Vikram Gaonkar", role: "Security Analyst", s: [2,1,1,4,1,2,1,1] },
   { id: 8, name: "Tara Pinto", role: "ML Engineer", s: [2,4,4,2,1,3,2,2] },
 ];
-export const NEXT_GEN_ROLES = ["AI Engineer", "Platform Engineer", "Data Product Manager", "AI Security Specialist", "AI Workflow Automation Specialist"];
+export const NEXT_GEN_ROLES = ["AI Engineer", "Platform Engineer", "Data Product Manager", "AI Security Specialist", "AI Workflow Automation Specialist", "AI Automation Engineer", "Full-Stack AI Developer", "MLOps Cloud Architect"];
 
 export const MOCK = {
   insights: {
@@ -50,9 +50,80 @@ export const MOCK = {
     { week: 3, topic: "Building AI-Powered Applications", action_item: "Build a small web app that takes user input, sends it to the Gemini API with a JSON schema, and renders the structured AI response as UI cards." },
     { week: 4, topic: "Agentic Workflows & Production Deployment", action_item: "Design and implement a multi-step AI agent workflow that chains 3+ API calls, handles errors gracefully, and present the project to your team." },
   ],
-  trends: [
-    { skill: "AI Agent Development", demand: "Hot", reason: "Companies are building autonomous AI agents to automate complex workflows, driving massive demand for developers who can orchestrate LLM-powered pipelines." },
-    { skill: "Cloud Security & Zero Trust", demand: "Rising", reason: "With growing cloud adoption and AI integration, enterprises urgently need professionals skilled in zero-trust architectures and AI-specific security." },
-    { skill: "Rust for Systems Programming", demand: "Emerging", reason: "Rust is increasingly adopted for high-performance, memory-safe systems including AI inference engines and cloud-native infrastructure." },
-  ],
 };
+
+// ---- Mock market feed (SAMPLE DATA: numbers are illustrative, shown with the DEMO badge). Each skill has a desc shown in the drawer. ----
+export const MOCK_MARKET_TRENDS = [
+  { category: "AI & Automation", skills: [
+    { name: "Agentic Workflows (n8n, LangChain)", desc: "Teams are replacing manual multi-step tasks with LLM agents that call tools and APIs. Demand is highest in operations, support and internal tooling roles.", surge: "+214%", urgency: "Critical" },
+    { name: "Local LLM Deployment (Ollama)", desc: "Running open models on company hardware keeps sensitive data in-house and cuts API bills. Valued wherever privacy rules block cloud AI.", surge: "+145%", urgency: "High" },
+    { name: "Prompt Architecture", desc: "Designing reusable, testable prompt chains instead of one-off prompts. Now expected from anyone shipping an LLM feature.", surge: "+90%", urgency: "Moderate" }] },
+  { category: "Cloud & Backend", skills: [
+    { name: "Serverless Vector Databases", desc: "Managed vector stores that scale to zero power semantic search and RAG with no servers to run. A common ask in AI product backends.", surge: "+180%", urgency: "Critical" },
+    { name: "Go (Golang) Microservices", desc: "Go's small binaries and fast concurrency make it the pick for high-throughput APIs and cloud tooling. Backend job posts increasingly list it.", surge: "+110%", urgency: "High" },
+    { name: "PostgreSQL pgvector", desc: "Adds vector search to the Postgres teams already run, so RAG needs no new database. A cheap upskill for existing backend staff.", surge: "+95%", urgency: "High" }] },
+  { category: "Frontend & Edge", skills: [
+    { name: "WebAssembly (Wasm)", desc: "Runs near-native code in the browser and at the edge, enabling heavy apps like editors and on-device inference. Niche but growing quickly.", surge: "+130%", urgency: "Moderate" },
+    { name: "Edge AI Computing", desc: "Running models on devices or edge nodes for low latency and offline use. Needed in retail, manufacturing and mobile products.", surge: "+105%", urgency: "High" },
+    { name: "React Server Components", desc: "Moves rendering and data fetching to the server so less JavaScript ships to the browser. Now the default in modern React frameworks.", surge: "+75%", urgency: "Moderate" }] },
+  { category: "Cybersecurity", skills: [
+    { name: "AI Red Teaming & Prompt-Injection Defense", desc: "Stress-testing LLM apps for jailbreaks, data leaks and injected instructions. Every company shipping AI needs someone who can do this.", surge: "+160%", urgency: "Critical" },
+    { name: "Zero Trust Architecture", desc: "Verify every user and device on every request instead of trusting the network perimeter. Driven by remote work and compliance audits.", surge: "+120%", urgency: "High" },
+    { name: "Software Supply-Chain Security (SBOM)", desc: "Tracking every dependency inside shipped software so vulnerable components can be found fast. Increasingly demanded by enterprise buyers and regulators.", surge: "+85%", urgency: "Moderate" }] },
+  { category: "Data & Analytics", skills: [
+    { name: "Data Lakehouse (Iceberg, Delta Lake)", desc: "One open-format store for both analytics and ML, replacing a separate warehouse and lake. Cuts duplication and cost at scale.", surge: "+140%", urgency: "High" },
+    { name: "Real-time Streaming (Kafka, Flink)", desc: "Processing events as they arrive for fraud checks, live dashboards and personalisation. Moves teams beyond nightly batch jobs.", surge: "+125%", urgency: "High" },
+    { name: "dbt & Analytics Engineering", desc: "Treats data transformations as tested, version-controlled code. The usual route for analysts becoming analytics engineers.", surge: "+80%", urgency: "Moderate" }] },
+  { category: "Platform & DevOps", skills: [
+    { name: "Platform Engineering (Backstage)", desc: "Internal developer platforms give teams self-service environments and standard paths to production. Replaces ad-hoc DevOps tickets.", surge: "+170%", urgency: "Critical" },
+    { name: "FinOps & Cloud Cost Optimisation", desc: "Tracking and cutting cloud spend by team and workload. A top CFO concern now that AI workloads inflate bills.", surge: "+115%", urgency: "High" },
+    { name: "eBPF Observability", desc: "Kernel-level tracing that shows system behaviour with almost no overhead or code changes. Prized for debugging production at scale.", surge: "+70%", urgency: "Moderate" }] },
+  { category: "MLOps & Model Ops", skills: [
+    { name: "LLM Evaluation & Observability", desc: "Measuring answer quality, cost and drift of LLM features in production. Without it teams cannot tell whether a model update broke something.", surge: "+190%", urgency: "Critical" },
+    { name: "RAG Pipeline Engineering", desc: "Chunking, embedding, retrieving and citing company documents so LLMs answer from trusted sources. The most common enterprise GenAI build.", surge: "+155%", urgency: "Critical" },
+    { name: "Fine-tuning (LoRA / QLoRA)", desc: "Adapting open models to a company's domain at a fraction of full training cost. Useful when prompting alone is not accurate enough.", surge: "+100%", urgency: "High" }] },
+  { category: "Governance & Product", skills: [
+    { name: "AI Governance & Compliance", desc: "Policies, audits and documentation to meet rules like the EU AI Act. Legal and risk teams now need technical fluency.", surge: "+135%", urgency: "High" },
+    { name: "AI Product Management", desc: "Scoping AI features around data, evaluation and failure modes, not just UI. A scarce skill for PMs moving into AI teams.", surge: "+110%", urgency: "High" },
+    { name: "Responsible AI & Model Risk", desc: "Testing for bias, safety and misuse before launch, then monitoring after. Banks and healthcare lead the hiring here.", surge: "+85%", urgency: "Moderate" }] },
+];
+// Which market skills count as addressing a company skill gap (keyword match on the skill NAME only, so loose descriptions never trigger a flag).
+// Deterministic on purpose: the same flag shows in mock and live mode, and the AI never decides it.
+export const GAP_KEYWORDS = {
+  cloud: /cloud|devops|platform|kubernetes|serverless|finops|ebpf|terraform|infrastructure/i,
+  data: /lakehouse|streaming|kafka|dbt|analytics engineering|data pipeline|data platform/i,
+  genai: /llm|genai|generative|prompt|agent|\brag\b|fine-tun/i,
+  sec: /secur|zero trust|red team|sbom|supply-chain|threat/i,
+  web: /frontend|react|wasm|webassembly|browser/i,
+  api: /\bapis?\b|backend|microservice|golang|postgres|database/i,
+  prod: /product|governance|compliance|responsible/i,
+  story: /storytelling|visuali[sz]ation|dashboard/i,
+};
+export const matchesGap = (t, gapId) => !!GAP_KEYWORDS[gapId]?.test(t.skill || t.name || "");
+
+// Category list for the drawer's selector, and the mock block for the chosen category
+export const MARKET_CATEGORIES = MOCK_MARKET_TRENDS.map((c) => c.category);
+export function mockTrends(category) {
+  const hit = MOCK_MARKET_TRENDS.find((c) => c.category === category) || MOCK_MARKET_TRENDS[0];
+  return structuredClone(hit);
+}
+
+// Per-persona mock roadmaps so mock mode still shows a *different* path for each person
+MOCK.roadmap_1 = [
+  { week: 1, topic: "From C++ to the Web: JavaScript & Async", action_item: "Port one of your C++ command-line programs to Node.js, then add a fetch() call to a public API and print the JSON. Focus on async/await." },
+  { week: 2, topic: "Your First Full-Stack App", action_item: "Build a small Express + HTML/CSS form app that saves entries to SQLite, and deploy it on a free host." },
+  { week: 3, topic: "LLM APIs & Structured Output", action_item: "Call the Gemini API from your backend with a JSON schema, validate the response, and add retry on 429/503 errors." },
+  { week: 4, topic: "AI Automation Workflows", action_item: "Build an n8n flow: webhook -> LLM classification -> Slack/Sheets. Demo it to your manager with one real company use case." },
+];
+MOCK.roadmap_3 = [
+  { week: 1, topic: "Cloud Foundations on Top of Linux Skills", action_item: "Map your on-prem knowledge to VPCs, IAM and VMs on one cloud, then provision a small network and server with Terraform." },
+  { week: 2, topic: "Containers & Kubernetes", action_item: "Containerise a small model-serving API with Docker and deploy it to a managed Kubernetes cluster using a Helm chart." },
+  { week: 3, topic: "Serving AI Models Securely", action_item: "Run an open model behind an authenticated gateway with secrets management, network policies and image vulnerability scanning." },
+  { week: 4, topic: "CI/CD, Monitoring & Cost", action_item: "Add a GitHub Actions pipeline, Prometheus/Grafana dashboards for latency and cost, and write a short runbook for the team." },
+];
+MOCK.roadmap_4 = [
+  { week: 1, topic: "Backend & Database Foundations", action_item: "Build a REST API in Node/Express with PostgreSQL. Model users and conversations, and connect your existing React app to it." },
+  { week: 2, topic: "LLM Streaming Endpoints", action_item: "Implement server-sent events so your React UI renders model output token by token, with abort and error states." },
+  { week: 3, topic: "Retrieval with pgvector", action_item: "Embed a set of company docs, store vectors in pgvector, and add retrieval so answers cite their sources." },
+  { week: 4, topic: "Ship It: Auth, Limits & Deploy", action_item: "Add login, rate limiting and logging, deploy the full-stack app, and present a live demo to your team." },
+];

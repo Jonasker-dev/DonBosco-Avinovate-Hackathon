@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard · UpskillAI</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <script>try{if(localStorage.getItem("upskill_theme")==="dark")document.body.classList.add("dark");if(sessionStorage.getItem("upskill_mock")!=="0")document.body.classList.add("mock")}catch(e){document.body.classList.add("mock")}</script>
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <!-- Print-only title block (filled by main.js right before printing) -->
+  <div class="print-head" id="printHead"></div>
+
+  <div id="demoBadge" role="status">⚠ DEMO MODE ACTIVE · sample data</div>
+  <header class="nav">
+    <a class="brand" id="brandHome" href="index.html" title="Back to the start page"><span class="logo">◆</span> UpskillAI</a>
+    <div class="nav-right">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="hr" role="tab" aria-selected="true">HR Dashboard</button>
+        <button class="tab" data-tab="emp" role="tab" aria-selected="false">Employee Dashboard</button>
+      </div>
+      <button class="demand-btn" id="trendsBtn" aria-expanded="false" aria-controls="sidebar"><span class="pulse-dot"></span> Live Market Demand</button>
+      <label class="nav-toggle"><input type="checkbox" id="mockToggle" checked> Mock mode</label>
+      <button class="theme-btn" id="themeToggle" title="Toggle dark mode">🌙 Dark</button>
+    </div>
+  </header>
+
+  <!-- ========= SLIDE-IN DRAWER: Live Market Demand ========= -->
+  <aside class="sidebar" id="sidebar" aria-label="Live Market Demand">
+    <div class="sidebar-toggle-row">
+      <h3><span class="pulse-dot"></span> Live Market Demand</h3>
+      <button class="btn btn-ghost btn-sm" id="trendsClose" aria-label="Close">✕</button>
+    </div>
+    <p class="muted drawer-sub">Pick a category to see which skills employers are hiring for right now.</p>
+    <p class="gap-note" id="gapNote"></p>
+    <div id="trendCats" class="chips" role="group" aria-label="Skill category"></div>
+    <div id="marketTrends" class="trends-list">
+      <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
+      <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
+      <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
+    </div>
+    <button class="btn btn-sm refresh-btn" id="refreshTrends">↻ Refresh</button>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <!-- ========= HR DASHBOARD ========= -->
+  <main id="hrDash" class="dash active">
+    <section class="hero">
+      <p class="eyebrow">HR &amp; L&amp;D Dashboard</p>
+      <h1>See the skill gaps <em>before</em> they cost you.</h1>
+      <p class="muted">Map your workforce competencies, track what the market will demand next, and get AI-built learning tracks that move people into next-gen roles.</p>
+      <div class="hero-actions">
+        <button class="btn" id="manageBtn">⚙ Manage data</button>
+        <span class="tag" id="dataTag"></span>
+      </div>
+    </section>
+
+    <section class="stats" id="stats" aria-label="Key metrics"></section>
+
+    <!-- Sub-navigation: one section at a time keeps this page short as it grows. The URL hash remembers the section. -->
+    <nav class="subnav" aria-label="HR dashboard sections">
+      <div class="subtabs" role="tablist">
+        <button class="subtab active" type="button" role="tab" aria-selected="true" aria-controls="pane-radar" data-sub="radar">Company skill radar</button>
+        <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="pane-heatmap" data-sub="heatmap">Competency heatmap</button>
+        <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="pane-foresight" data-sub="foresight">Market foresight &amp; training pathway</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="exportBtn" title="Prints all three sections, with the full heatmap, to PDF">⬇ Export PDF</button>
+    </nav>
+
+    <section class="card hr-pane active" id="pane-radar" data-pane="radar">
+      <div class="card-head"><h2>Company skill radar</h2></div>
+      <div class="radar-split"><div id="companyRadar" class="radar-wrap"></div><div id="radarCallout"></div></div>
+    </section>
+
+    <section class="card hr-pane" id="pane-heatmap" data-pane="heatmap">
+      <div class="card-head">
+        <h2>Competency heatmap</h2>
+        <div class="row head-actions">
+          <span class="muted" id="heatCount">Click an employee for their AI pathway</span>
+          <button class="btn btn-ghost btn-sm" id="heatMaxBtn" type="button" title="Show every employee at once">⤢ Maximize</button>
+        </div>
+      </div>
+      <div class="scroll heat-scroll"><table id="heatmap"></table></div>
+      <div class="gaps-head">
+        <h3>Skill gaps <span class="muted">· click a bar to see why</span></h3>
+        <span class="tag warn">ILLUSTRATIVE cost &amp; time</span>
+      </div>
+      <div id="gapBars" class="bars"></div>
+      <p class="muted fine" id="estNote"></p>
+    </section>
+
+    <section class="card hr-pane" id="pane-foresight" data-pane="foresight">
+      <div class="card-head">
+        <h2>Market foresight &amp; training pathway</h2>
+        <button class="btn" id="analyzeBtn">Analyze with AI</button>
+      </div>
+      <div id="insights" class="empty">Run the analysis to forecast emerging tech demand and a company-wide training pathway.</div>
+    </section>
+  </main>
+
+  <!-- ========= EMPLOYEE DASHBOARD ========= -->
+  <main id="empDash" class="dash">
+    <section class="hero">
+      <p class="eyebrow">Employee Dashboard</p>
+      <h1>Your <em>upskill</em> journey starts here.</h1>
+      <p class="muted">Log in, see your current skill profile, and let AI chart your personalized 4-week roadmap to the role you want.</p>
+    </section>
+
+    <!-- Employee login card -->
+    <section class="card" id="empLoginCard">
+      <div class="card-head"><h2>Select your profile</h2></div>
+      <div class="emp-login-form">
+        <label for="empLoginSelect">I am:</label>
+        <select id="empLoginSelect" class="login-select"></select>
+        <button class="btn" id="empLoginBtn">Log In</button>
+      </div>
+    </section>
+
+    <!-- After login: employee view -->
+    <section class="card" id="empProfile" style="display:none">
+      <div class="card-head">
+        <h2>My Skill Profile</h2>
+        <div class="row">
+          <button class="btn btn-ghost" id="empExportBtn" title="Save your profile and roadmap as a PDF">⬇ Export PDF</button>
+          <button class="btn btn-ghost" id="empLogoutBtn">Switch User</button>
+        </div>
+      </div>
+      <div class="emp-profile-content">
+        <div class="emp-info">
+          <div class="avatar" id="empAvatar">A</div>
+          <div>
+            <h3 id="empName">—</h3>
+            <span class="muted" id="empRole">—</span>
+          </div>
+        </div>
+        <div id="empSkillBars" class="emp-skill-bars"></div>
+        <div id="empRadar" class="radar-wrap"></div>
+      </div>
+    </section>
+
+    <section class="card" id="empRoadmapCard" style="display:none">
+      <div class="card-head">
+        <h2>Generate My Upskill Path</h2>
+        <div class="row">
+          <select id="empRoadmapRole" aria-label="Target role"></select>
+          <button class="btn" id="empRoadmapBtn">🚀 Generate My Upskill Path</button>
+        </div>
+      </div>
+      <div id="empRoadmap" class="empty">Select a target role and click the button above to get your personalized 4-week AI roadmap.</div>
+    </section>
+  </main>
+
+  <!-- ========= MAXIMIZED HEATMAP: every employee at once ========= -->
+  <div class="modal" id="heatModal" role="dialog" aria-modal="true" aria-labelledby="heatTitle">
+    <div class="modal-box wide-box">
+      <div class="card-head">
+        <div><h2 id="heatTitle">Competency heatmap</h2><span class="muted" id="heatMaxCount"></span></div>
+        <button class="btn btn-ghost btn-sm" id="heatClose" aria-label="Close">✕</button>
+      </div>
+      <div class="scroll"><table id="heatmapMax"></table></div>
+    </div>
+  </div>
+
+  <!-- ========= WHY THIS GAP? drill-down ========= -->
+  <div class="modal" id="gapModal" role="dialog" aria-modal="true" aria-labelledby="gapTitle">
+    <div class="modal-box gap-box">
+      <div class="card-head">
+        <div><p class="eyebrow">Why this gap?</p><h2 id="gapTitle">—</h2></div>
+        <button class="btn btn-ghost btn-sm" id="gapClose" aria-label="Close">✕</button>
+      </div>
+      <div id="gapBody"></div>
+    </div>
+  </div>
+
+  <!-- ========= SCREEN 3: EMPLOYEE PATHWAY MODAL (keep last: it opens on top of the other modals) ========= -->
+  <div class="modal" id="empModal" role="dialog" aria-modal="true" aria-labelledby="modalName">
+    <div class="modal-box">
+      <div class="card-head">
+        <div><h2 id="modalName">—</h2><span class="muted" id="modalRole">—</span></div>
+        <button class="btn btn-ghost btn-sm" id="modalClose" aria-label="Close">✕</button>
+      </div>
+      <div id="modalRadar" class="radar-wrap"></div>
+      <div id="modalMentors" class="mentor-box"></div>
+      <div class="row" style="margin:12px 0">
+        <select id="modalTargetRole" aria-label="Target role"></select>
+        <button class="btn" id="modalGenBtn">🚀 Generate 4-week roadmap</button>
+      </div>
+      <div id="modalRoadmap" class="empty">Pick a target role to generate this employee's roadmap.</div>
+    </div>
+  </div>
+
+  <div id="toasts" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
