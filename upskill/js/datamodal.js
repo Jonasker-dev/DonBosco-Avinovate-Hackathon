@@ -1,9 +1,9 @@
 // Manage data modal: editable required levels + CSV import + reset. Shared by the landing page and the dashboard.
 // It injects its own markup, so each page only needs <div id="toasts"> and the stylesheet.
 // All roster changes go through roster.js; the page passes onChange() to re-render itself afterwards.
-// v9: NO localStorage persistence. Everything in memory.
+// Every change is saved in the database by roster.js (server.py + SQLite) before the screen updates: no browser storage.
 import { SKILLS, EMPLOYEES } from "./data.js";
-import { setTarget, readRoster, commitImport, resetRoster, rosterCSV, isCustom } from "./roster.js";
+import { setTarget, readRoster, commitImport, resetRoster, isCustom, ROSTER_CSV_URL, DEMO_CSV_URL } from "./roster.js";
 import { avg } from "./gaps.js";
 import { $, esc, toast, isTopModal } from "./ui.js";
 
@@ -23,11 +23,12 @@ const MARKUP = `
 
     <section class="data-sec">
       <h3>2 · Import employees from CSV</h3>
-      <p class="muted">Columns: <code>name</code>, <code>role</code>, then one column per skill scored 0-5 (headers as in the template). Optional: <code>target_role</code>, <code>description</code>, <code>yoe</code> (years of experience), <code>photo</code> (path to image file).</p>
+      <p class="muted">Columns: <code>name</code>, <code>role</code>, then one column per skill scored 0-5 (headers as in the template). Optional: <code>target_role</code>, <code>description</code>, <code>yoe</code> (years of experience), <code>stack</code>, <code>notes</code>, <code>photo</code> (image file name or link). Employees, photos and levels are stored in the database, so they are still here after a refresh or on another computer.</p>
       <div class="row">
         <label class="btn btn-ghost btn-sm file-btn">📄 Choose CSV file<input type="file" id="csvFile" accept=".csv,.tsv,.txt,text/csv" class="sr"></label>
         <label class="btn btn-ghost btn-sm file-btn">🖼 Add photos<input type="file" id="photoFiles" accept="image/*" multiple class="sr"></label>
-        <button class="btn btn-ghost btn-sm" id="csvTemplate" type="button">⬇ Download template</button>
+        <button class="btn btn-ghost btn-sm" id="csvTemplate" type="button" title="Every employee currently in the database, in import format">⬇ Current roster CSV</button>
+        <button class="btn btn-ghost btn-sm" id="csvDemo" type="button" title="The built-in demo employees, in import format">⬇ Demo CSV</button>
       </div>
       <div id="photoPreview" class="photo-preview"></div>
       <textarea id="csvText" rows="6" spellcheck="false" aria-label="CSV text" placeholder="Paste CSV here, or drop a .csv file onto this box"></textarea>
@@ -45,7 +46,7 @@ const MARKUP = `
   </div>
 </div>`;
 
-// Photo storage: in-memory map of filename -> data URL
+// Photos picked in this window wait here (filename -> data URL) until "Import"; the server then stores them in the database
 const photoStore = new Map();
 // Normalize a string for photo-employee matching: lowercase, strip non-alphanumeric
 const photoNorm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -69,8 +70,12 @@ export function initDataModal({ onChange = () => {} } = {}) {
   const syncSource = () => {
     $("#dataSource").textContent = isCustom() ? `Using your data (${EMPLOYEES.length} employees).` : `Using the built-in demo dataset (${EMPLOYEES.length} employees).`;
     $("#resetData").disabled = !isCustom();
+    $("#resetData").title = "Delete the imported employees and photos from the database and restore the built-in demo employees and levels";
   };
-  const setT = (i, v) => { const t = setTarget(i, v); syncRow(i, t); onChange({}); syncSource(); };
+  const setT = async (i, v) => {
+    try { const t = await setTarget(i, v); syncRow(i, t); onChange({}); syncSource(); }
+    catch (err) { toast(err.message, true); syncRow(i, SKILLS[i].target); }
+  };
   const syncModal = () => { ed.innerHTML = targetRows(); SKILLS.forEach((s, i) => syncRow(i, s.target)); syncSource(); };
   ed.addEventListener("click", (e) => { const b = e.target.closest("button[data-i]"); if (b && !b.disabled) setT(+b.dataset.i, SKILLS[+b.dataset.i].target + +b.dataset.d); });
   ed.addEventListener("change", (e) => { const inp = e.target.closest("input[data-i]"); if (inp) setT(+inp.dataset.i, inp.value); });
@@ -121,12 +126,11 @@ export function initDataModal({ onChange = () => {} } = {}) {
   txt.addEventListener("dragover", (e) => { e.preventDefault(); txt.classList.add("drag"); });
   txt.addEventListener("dragleave", () => txt.classList.remove("drag"));
   txt.addEventListener("drop", (e) => { e.preventDefault(); txt.classList.remove("drag"); readFile(e.dataTransfer.files[0]); });
-  $("#csvTemplate").addEventListener("click", () => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([rosterCSV()], { type: "text/csv" })); a.download = "upskill-roster-template.csv"; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  });
-  importBtn.addEventListener("click", () => {
+  // Both CSVs are generated by the server from the database / the demo seed, so they always match what is stored
+  const download = (url, name) => { const a = document.createElement("a"); a.href = url; a.download = name; a.click(); };
+  $("#csvTemplate").addEventListener("click", () => download(ROSTER_CSV_URL, "upskill-roster.csv"));
+  $("#csvDemo").addEventListener("click", () => download(DEMO_CSV_URL, "upskill-demo-employees.csv"));
+  importBtn.addEventListener("click", async () => {
     if (!parsed) return;
     // Match uploaded photos to employees by normalized name (strips spaces, hyphens, case)
     if (photoStore.size) {
@@ -138,7 +142,11 @@ export function initDataModal({ onChange = () => {} } = {}) {
       }
       let matched = 0;
       parsed.forEach((emp) => {
-        if (emp.photo) return; // already has a photo from CSV column
+        if (emp.photo) { // the CSV names a photo: use the matching uploaded file; otherwise the server looks in Assets/ or keeps an image link
+          const up = !/^(https?:|data:)/i.test(emp.photo) && photoStore.get(emp.photo.split(/[\\/]/).pop().toLowerCase());
+          if (up) { emp.photo = up; matched++; }
+          return;
+        }
         const nameNorm = photoNorm(emp.name);
         // Try: exact match, then name contains filename, then filename contains name, then first-name match
         const firstName = photoNorm(emp.name.split(/\s+/)[0]);
@@ -151,13 +159,19 @@ export function initDataModal({ onChange = () => {} } = {}) {
       if (matched) toast(`📷 Matched ${matched} photo${matched === 1 ? "" : "s"} to employees`);
       else if (photoStore.size) toast("⚠ No photos matched employee names. Name your photos to match employee names (e.g., john.jpg for John Smith).", true);
     }
-    const added = parsed.length, total = commitImport(parsed, $("#csvMode").value);
-    txt.value = ""; preview(); photoStore.clear(); updatePhotoPreview();
-    onChange({ rosterChanged: true }); syncModal();
-    toast(`Imported ${added} employee${added === 1 ? "" : "s"} · ${total} in roster`);
+    importBtn.disabled = true;
+    try {
+      const added = parsed.length, total = await commitImport(parsed, $("#csvMode").value); // saved in the database first
+      txt.value = ""; preview(); photoStore.clear(); updatePhotoPreview();
+      onChange({ rosterChanged: true }); syncModal();
+      toast(`Imported ${added} employee${added === 1 ? "" : "s"} · ${total} saved in the database`);
+    } catch (err) { importBtn.disabled = false; toast(err.message, true); }
   });
-  // Reset wipes all in-memory state and restores the seed
-  $("#resetData").addEventListener("click", () => { resetRoster(); photoStore.clear(); updatePhotoPreview(); onChange({ rosterChanged: true }); syncModal(); toast("Demo data restored"); });
+  // Reset: the database is emptied of imported employees + photos and refilled with the demo employees, photos and default levels
+  $("#resetData").addEventListener("click", async () => {
+    try { await resetRoster(); photoStore.clear(); updatePhotoPreview(); onChange({ rosterChanged: true }); syncModal(); toast("Database reset to the demo employees"); }
+    catch (err) { toast(err.message, true); }
+  });
 
   const close = () => { if (!modal.classList.contains("open")) return; modal.classList.remove("open"); opener?.focus?.(); };
   const open = () => { opener = document.activeElement; syncModal(); modal.classList.add("open"); $("#dataClose").focus(); };

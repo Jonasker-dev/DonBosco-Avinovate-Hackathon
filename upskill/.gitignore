@@ -1,3 +1,5 @@
 config.js
-data/*
-!data/.gitkeep
+data/*.db-journal
+data/*.tmp
+data/*.migrated
+__pycache__/

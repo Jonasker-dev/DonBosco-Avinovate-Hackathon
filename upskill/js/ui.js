@@ -1,4 +1,5 @@
-// UI helpers: toasts, button loading state, render helpers, tab switching, theme toggle. No API calls here.
+// UI helpers: toasts, button loading state, render helpers, tab switching, theme toggle. No AI calls here (settings are saved through roster.js).
+import { saveSettings } from "./roster.js";
 export const $ = (s) => document.querySelector(s);
 export const $$ = (s) => document.querySelectorAll(s);
 export const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -32,29 +33,40 @@ export function initTabs(onSelect) {
   return select;
 }
 
-// Mock mode is remembered for the browser tab (sessionStorage), so the landing page and the dashboard agree.
-// Default ON (saves API quota). The body class `mock` lets CSS show mock-only controls, e.g. "Reset to demo data".
-export const getMockPref = () => { try { return sessionStorage.getItem("upskill_mock") !== "0"; } catch { return true; } };
+// Mock mode is saved in the database (settings table), so every page, tab and computer agrees. server.py injects the saved value
+// into the page as window.UPSKILL_BOOT, so there is no browser storage. Default ON (saves API quota).
+// The body class `mock` lets CSS show mock-only controls, e.g. "Reset to demo data".
+const BOOT = () => window.UPSKILL_BOOT?.settings || {};
+export const getMockPref = () => BOOT().mock !== false;
 export function setMockPref(on) {
-  try { sessionStorage.setItem("upskill_mock", on ? "1" : "0"); } catch {}
   document.body.classList.toggle("mock", !!on);
+  if (BOOT().mock !== !!on) { (window.UPSKILL_BOOT ||= { settings: {} }).settings.mock = !!on; saveSettings({ mock: !!on }); }
+}
+
+// Shown instead of a blank page when the database server is not running (data lives only in the database, never in the browser)
+export function showServerError(err) {
+  document.body.insertAdjacentHTML("beforeend", `<div class="modal open" role="alertdialog" aria-modal="true"><div class="modal-box"><h2>Database not reachable</h2>
+    <p>UpskillAI keeps every employee, photo and setting in its database, which is served by <code>server.py</code>.</p>
+    <p class="muted">${esc(err?.message || err)}</p><p>Open a terminal in this folder, run <code>python3 server.py</code> (Windows: <code>python server.py</code>) and open <b>http://localhost:8000</b>.</p>
+    <button class="btn" onclick="location.reload()">Retry</button></div></div>`);
 }
 
 // True when `el` is the front-most open modal (modals share one z-index, so the last one in the DOM is on top). Used so Esc closes one at a time.
 export const isTopModal = (el) => { const open = $$(".modal.open"); return open[open.length - 1] === el; };
 
-// Light / Dark theme toggle. Default is light; the choice is remembered. Works for every .theme-btn (navbar + landing).
-// (An inline script in index.html applies the saved theme before first paint, so there is no flash.)
+// Light / Dark theme toggle. Default is light; the choice is saved in the database. Works for every .theme-btn (navbar + landing).
+// (server.py puts the saved theme on <body> before first paint, so there is no flash.)
 export function initThemeToggle() {
   const btns = $$(".theme-btn");
   const paint = (dark) => btns.forEach((b) => { b.innerHTML = dark ? "☀️ Light" : "🌙 Dark"; b.title = dark ? "Switch to light mode" : "Switch to dark mode"; });
-  let saved = null; try { saved = localStorage.getItem("upskill_theme"); } catch {}
-  document.body.classList.toggle("dark", saved === "dark");
-  paint(saved === "dark");
+  const dark0 = BOOT().theme === "dark";
+  document.body.classList.toggle("dark", dark0);
+  paint(dark0);
   btns.forEach((b) => b.addEventListener("click", () => {
     const dark = document.body.classList.toggle("dark");
     paint(dark);
-    try { localStorage.setItem("upskill_theme", dark ? "dark" : "light"); } catch {}
+    (window.UPSKILL_BOOT ||= { settings: {} }).settings.theme = dark ? "dark" : "light";
+    saveSettings({ theme: dark ? "dark" : "light" });
   }));
 }
 

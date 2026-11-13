@@ -36,7 +36,8 @@ If a field is unknown, leave it as TBD. Never invent values.
 ```
 index.html           (start page / hero, its own webpage)
 dashboard.html       (HR Dashboard + Employee Dashboard)
-server.py            (optional stdlib server: static files + data/roster.json persistence)
+server.py            (REQUIRED stdlib server: static files + SQLite API; owns data/upskill.db)
+seed/demo_roster.json (demo employees + default levels; what Reset restores)   seed/demo_employees.csv (same, as CSV)
 config.js            (secret, gitignored, exposes SECRET_CONFIG)
 config.example.js    (placeholder key, committed)
 .gitignore           (must list config.js)
@@ -52,7 +53,7 @@ js/ui.js             (toasts, loaders, render helpers)
 js/data.js           (seed / demo data, mock AI responses)
 js/radar.js          (dependency-free SVG radar)
 js/fx.js             (visual effects only)
-js/roster.js         (editable skill targets + CSV import/export + 3-layer persistence; no DOM, no API)
+js/roster.js         (editable skill targets + CSV parsing + the ONLY client of the database API; no DOM, no AI)
 ```
 
 - Keep functions small and commented. Prefer clarity over cleverness. Everything must be explainable by the team in a Q&A.
@@ -101,8 +102,8 @@ Define all of this as CSS variables in `:root`. No hardcoded colors elsewhere.
 1. **Loading states:** disable the button and show a spinner or skeleton ("Analyzing with AI...") while waiting on `fetch()`.
 2. **Toasts:** never `alert()`. Use a floating bottom-right dark toast for success and error messages.
 3. **Empty & error states:** styled fallback card with a retry button when there is no data or the API fails.
-4. **Pre-populated demo data:** realistic seed data so the app is never blank during a live demo.
-5. **Persistence:** keep state in `localStorage` (wrapped in `try/catch`) so a refresh doesn't wipe the demo.
+4. **Pre-populated demo data:** realistic seed data (`seed/demo_roster.json`, loaded into the database on first run) so the app is never blank during a live demo.
+5. **Persistence:** all app data (employees, photos, levels, theme, mock mode) lives in the SQLite database behind `server.py`, so a refresh, another browser or another computer (copy the folder) keeps it. NEVER use localStorage, sessionStorage, IndexedDB or cookies. AI results are session-only in-memory caches.
 6. **Wow moment:** one visible, animated AI result in the core flow (smooth reveal or streaming-feel text).
 
 ---
@@ -176,12 +177,12 @@ The AI assistant must check `README.md` against the actual code at the end of ev
 - [x] Project initialized, brief filled in (Section 0)
 - [x] `ai.js` provider chain (Gemini -> Groq -> Meta -> mock) with model fallback + mock mode
 - [x] v8: hero is its own page (`index.html`); dashboard moved to `dashboard.html`. CSV import on the start page keeps the user there. Start page no longer skipped on reload.
-- [x] v8: imported roster persists in 3 layers (localStorage, IndexedDB, `data/roster.json` via `server.py`); Reset wipes all three; Reset button visible in Mock mode only (`body.mock`)
+- [x] v11: REAL DATABASE. `server.py` now owns `data/upskill.db` (SQLite: skills, employees, scores, photos as BLOBs, settings). Imported employees keep name, photo, scores, job, years of experience, description, stack, notes, target role; levels, theme and mock mode are stored there too. Zero browser storage. Reset restores the demo employees, their photos and default levels. CSV gained `stack`/`notes`; Current roster CSV and Demo CSV come from the server. (Supersedes the v8 3-layer persistence; Reset button still shows in Mock mode only.)
 - [x] v8: CSV import defaults to "Add to current roster" (replace is still an option) so pre-existing employees stay visible
 - [x] v8: HR sub-navigation (radar | heatmap | foresight) with URL hash; heatmap Maximize view; PDF prints all sections + full heatmap; Export PDF on the Employee dashboard
 - [x] v8: gap bars are clickable "Why this gap?" drill-downs with ILLUSTRATIVE cost/time and a rule-based "Who can mentor?" (also in the employee modal)
 - [x] (v7, now on `index.html`) Screen 1: Landing hero, theme-aware (light default, dark when toggled; toggle button on the landing too). Aurora + dot-grid background, cursor spotlight, live radar preview card with floating chips (all numbers from the data), stats strip, "Launch Dashboard" + "Import your own CSV"; brand click returns to it; skipped on reload within a session
-- [x] Manage data modal (HR hero button): editable required skill levels (1-5 steppers) and CSV import (file, drag-drop or paste; preview + warnings; Replace or Add; template download). Saved in localStorage (`upskill_roster`), "Reset to demo data" restores the seed. Skills list stays the fixed 8.
+- [x] Manage data modal (HR hero button): editable required skill levels (1-5 steppers) and CSV import (file, drag-drop or paste; preview + warnings; Replace or Add; template download). Saved in the database (v11; was localStorage), "Reset to demo data" restores the seed. Skills list stays the fixed 8.
 - [x] Dashboard heroes are gradient banners; HR hero shows a Demo dataset / Custom data tag
 - [x] Analysis made before a data change is flagged "data changed since this analysis: re-run" (fingerprint `sig()`), never silently shown as current
 - [x] Screen 2: HR Dashboard: stats, company radar (required vs average), heatmap + gap bars, AI market foresight + pathway, Export PDF (`window.print()` + `@media print`)
@@ -201,14 +202,14 @@ The AI assistant must check `README.md` against the actual code at the end of ev
 - [x] Light mode default + dark mode toggle (dark = "Rose Quartz Dark")
 - [x] Live Market Demand: slide-in drawer opened from a navbar button (closed by default, fetch only on first open, live results cached 6 h per category, Esc/scrim/X to close)
 - [x] Visual polish (`js/fx.js`): particle network background, scroll reveal, stat count-up, bar grow, hover lift. Respects `prefers-reduced-motion`.
-- [x] Loading / empty / error states, seed data, localStorage persistence
+- [x] Loading / empty / error states, seed data, database persistence (v11)
 - [x] `README.md` updated for the current feature set
 - [ ] Browser-test the live UI against real APIs (check each key works first, e.g. with `yo.html` if you have it locally)
 - [ ] Demo rehearsed, backup recording made
 - [ ] Final submission checklist (Section 8) done
 
 **Current focus:** Test against live APIs (mock off), rehearse the 3-screen demo
-**Known issues:** Imported data lives on one machine (browser storage; plus `data/roster.json` when `server.py` runs). If `server.py` is stopped while you press Reset, the old file stays and is restored on the next boot, so reset with the server running. Imported employees have no persona notes, so their roadmap uses the generic prompt / generic mock roadmap. Custom data lives in one browser's localStorage only (no server, no sharing). Mock mode was browser-checked (headless Chromium, no console errors); live APIs are not. Meta Model API may be blocked by CORS (expected, falls through to mock). Gemini + Google Search grounding is unverified against the real API (if it fails it silently falls back to plain Gemini). Gap flag matching is keyword-based on skill names, so unusual live skill names may not be flagged.
+**Known issues:** The app cannot run without `server.py` (it shows a "Database not reachable" notice). No login: anyone who can reach the server can change the data. Copy `data/upskill.db` only while the server is stopped. CSV rows without `stack`/`notes` get the generic roadmap prompt / generic mock roadmap (the 3 demo personas carry their own). Mock mode was browser-checked (headless Chromium, no console errors); live APIs are not. Meta Model API may be blocked by CORS (expected, falls through to mock). Gemini + Google Search grounding is unverified against the real API (if it fails it silently falls back to plain Gemini). Gap flag matching is keyword-based on skill names, so unusual live skill names may not be flagged.
 **Scope decision:** CSV import and editable HR targets ARE built (Manage data modal, see Section 10). Seed data is still the default and Reset restores it. NO extra pages (Roles matrix, Team view, Learning Hub). Demo = the 3 screens above. No pie charts (skills are not parts of a whole).
 
 ---
@@ -219,8 +220,9 @@ Newest first. Record every deviation from this file or new standing rule here.
 
 | Date | Decision / rule | Reason |
 |---|---|---|
+| 2026-11-14 | **v11 database.** All persistence moved to SQLite (`data/upskill.db`) behind `server.py` (stdlib `sqlite3`, one short connection per request, answer sent only after commit). Removed every use of localStorage, sessionStorage, IndexedDB and the `upskill_srv` cookie; theme and mock mode are rows in `settings`, injected into the HTML by the server at `<!--BOOT-->` (no flash). Demo employees moved out of `data.js` into `seed/demo_roster.json` (`EMPLOYEES` starts empty and is filled by `loadSaved()`). Photos (upload, `Assets/` file or link) are validated by magic bytes, max 2 MB, stored as BLOBs and served at `/api/photo/<id>`. `roster.js` functions `setTarget`, `commitImport`, `resetRoster` are now async. The server rejects `/data`, `/server.py` as static files. The app shows "Database not reachable" instead of falling back to temporary data. | Requested: proper database, no local web storage, data must survive refresh and open on another computer |
 | 2026-11-14 | **v8 multi-page split.** `index.html` = start page, `dashboard.html` = HR + Employee, shared modules. Manage data modal moved out of `main.js` into `js/datamodal.js` (injects its own markup) so both pages use one copy. Mock-mode choice is kept in `sessionStorage` (`upskill_mock`) so both pages agree; default still ON. Removed the "skip landing within a session" logic. Esc closes only the front-most modal (`isTopModal`). | Requested: hero as a separate page that stays put after a CSV import; the HR page was getting crowded |
-| 2026-11-14 | **Persistence in 3 layers** (`roster.js`): localStorage, IndexedDB mirror, `data/roster.json` through `server.py` (page detects it via the `upskill_srv` cookie, so plain servers cause no failed requests). `loadSaved()` is now async (top-level `await` in both entry scripts). Reset deletes all layers. No browser page can survive "Clear site data" without writing outside the browser; `server.py` is that outside place. `server.py` is stdlib only, binds to 127.0.0.1, accepts only `/api/roster`. | Requested: imported CSV must outlive clearing local storage |
+| 2026-11-14 | SUPERSEDED by the v11 database row above: **Persistence in 3 layers** (`roster.js`): localStorage, IndexedDB mirror, `data/roster.json` through `server.py` (page detects it via the `upskill_srv` cookie, so plain servers cause no failed requests). `loadSaved()` is now async (top-level `await` in both entry scripts). Reset deletes all layers. No browser page can survive "Clear site data" without writing outside the browser; `server.py` is that outside place. `server.py` is stdlib only, binds to 127.0.0.1, accepts only `/api/roster`. | Requested: imported CSV must outlive clearing local storage |
 | 2026-11-14 | **Cost/time estimate and mentor matching are plain formulas in `js/gaps.js`**, shown as ILLUSTRATIVE (24 h per level, $40/h, 4 h/week; mentor = score 3+ and 1 level ahead, max 3 learners). No AI involved, so the numbers are explainable in Q&A. | Requested; fits the rule that gaps are computed, never hallucinated |
 | 2026-11-14 | HR dashboard uses sub-navigation (`.subtab` / `.hr-pane`, hash `#radar|#heatmap|#foresight|#employee`). Print CSS forces all panes visible and removes the heatmap height cap, so the PDF has every section and every employee. Export PDF buttons: HR sub-nav bar and Employee profile card; a print-only title block is filled on `beforeprint`. | Requested |
 | 2026-11-13 | Landing now follows the theme (removed `body.landing` from the dark selector); `.theme-btn` buttons (navbar + landing) share one handler; inline script in `index.html` applies the saved theme before first paint. Added `color-scheme`, `--info`, and aurora/spot/hero variables for both themes; heatmap cells use `--heat-color`. Dashboard `.hero` is now a gradient banner. Landing/hero motion lives in `fx.js` + the FX/landing CSS only. | Light default with dark toggle was requested for every screen; hero was too plain |
@@ -254,7 +256,8 @@ Newest first. Record every deviation from this file or new standing rule here.
 - Market trends: with `ai.webSearch` on and a Gemini key, live results come from Gemini + Google Search (tag shows "via Gemini + Google Search"). Any other tag ("via Gemini", "via Groq", "via Meta Muse") means model knowledge only, not web data. Mock numbers are illustrative. Say this in the pitch.
 - Use Flexbox for layout. Do not reintroduce `display:grid` without recording why in this file.
 - Cost/time numbers must always carry the word "illustrative" in the UI. Change the assumptions only in `ESTIMATE` (`gaps.js`).
-- Targets and the roster are changed ONLY through `roster.js` (`setTarget`, `commitImport`, `resetRoster`), then call `refreshAll()` in `main.js`. Never mutate `SKILLS`/`EMPLOYEES` from anywhere else. Imported ids must stay >= 100.
+- Targets and the roster are changed ONLY through `roster.js` (`setTarget`, `commitImport`, `resetRoster`; all async, awaited so the database is written first), then call `refreshAll()` in `main.js`. Never mutate `SKILLS`/`EMPLOYEES` from anywhere else (AI-estimated levels are the one session-only exception and are never saved). Imported ids start at 100 (assigned by the server).
+- No browser storage, ever (see Section 4 rule 5). New persistent data = a column/table in `server.py` + an endpoint, not a client-side store.
 - Never ship a screen that looks right in only one theme: every colour is a CSS variable defined for light and dark.
 
 **API usage budget (3 free-tier keys): READ BEFORE TESTING OR PRESENTING**
@@ -262,7 +265,7 @@ Newest first. Record every deviation from this file or new standing rule here.
 - Chain order is Gemini -> Groq -> Meta -> mock, so Groq/Meta only fire when Gemini fails. A Gemini 429 during testing would quietly burn them. While developing, set `GRQ_KEY` and `META_KEY` to `""` in your local `config.js` (blank keys are skipped); restore them only for the final rehearsal and the presentation.
 - Cost per click in live mode: Analyze with AI = 1 call; each roadmap = 1; each NEW market category = 1 grounded call (cached 6 h per category, so re-clicking a chip is free); Refresh = 1 forced call. Mock mode = 0.
 - Testing: Mock ON by default. Aim for at most about 10 live calls per day. Do one live pass per feature, then go back to mock.
-- Before the presentation: with the keys restored, pre-warm the cache in the SAME browser and at the SAME URL you will present from (localStorage is per origin): Analyze with AI once, the three persona roadmaps (Jonasker Fernandes, Mavilon Coutino, Schneider Gracious), and 2-3 market categories. About 7 Gemini calls. Insights and roadmaps persist in localStorage; trends last 6 h, so pre-warm trends within 6 h of the pitch.
+- Before the presentation: with the keys restored, pre-warm the caches in the SAME open tab you will present from (they are in-memory, so a page reload clears them): Analyze with AI once, the three persona roadmaps (Jonasker Fernandes, Mavilon Coutino, Schneider Gracious), and 2-3 market categories. About 7 Gemini calls. Insights, roadmaps and trends live in memory for the open tab (a reload clears them), so pre-warm right before the pitch and do not reload.
 - During the pitch: start in Mock mode (safe), flip Mock OFF only for the live-AI segment so cached results appear instantly. If wifi or quota dies, tick Mock mode; the DEMO badge keeps it honest.
 - If Gemini's daily quota is exhausted, Groq is the real backup (Meta likely fails on CORS). Do not spend Groq during testing.
 - To turn web search off (saves grounded-search quota): set `webSearch: false` in `ai.js`.

@@ -1,18 +1,20 @@
 // Dashboard entry point (dashboard.html): renders both dashboards from the roster and wires all AI features.
 // The start page lives in index.html + landing.js.
-// v9: NO localStorage for data. Everything in memory. Reset button clears all state.
+// v11: the roster, photos, required levels, theme and mock mode live in the database (server.py). No browser storage at all.
+// AI results (analysis, roadmaps, cost estimates) are session-only caches in memory.
 import { SKILLS, EMPLOYEES, NEXT_GEN_ROLES, MARKET_CATEGORIES, MOCK, matchesGap } from "./data.js";
 import { askAI, ai, generateUpskillRoadmap, fetchMarketTrends, normalizeRoadmap, estimateRequiredLevels, estimateCostTime } from "./ai.js";
 import { initFX, countUp } from "./fx.js";
-import { loadSaved, isCustom, getSeedTargets } from "./roster.js";
+import { loadSaved, isCustom, getSavedTargets } from "./roster.js";
 import { avg, buildGaps, readiness, skillIndex, belowTarget, estimate, estText, formulaText, money, matchMentors, mentorsFor, ESTIMATE, MENTOR } from "./gaps.js";
 import { radar } from "./radar.js";
-import { $, $$, esc, toast, withLoading, initTabs, initThemeToggle, renderTrends, renderTrendSkeleton, renderCategoryChips, renderEmpSkills, renderRoadmap, setDemo, isMock, getMockPref, setMockPref, isTopModal } from "./ui.js";
+import { $, $$, esc, toast, withLoading, initTabs, initThemeToggle, renderTrends, renderTrendSkeleton, renderCategoryChips, renderEmpSkills, renderRoadmap, setDemo, isMock, getMockPref, setMockPref, isTopModal, showServerError } from "./ui.js";
 import { initDataModal } from "./datamodal.js";
 
-await loadSaved(); // no-op in v9 (kept for compatibility)
+try { await loadSaved(); } // read the roster (employees, photos, levels) from the database before the first render
+catch (e) { showServerError(e); throw e; }
 
-// ========= IN-MEMORY CACHES (no localStorage) =========
+// ========= IN-MEMORY AI CACHES (session only) =========
 const cache = { insights: null, roadmaps: {}, aiCost: null };
 
 // ========= HR DASHBOARD LOGIC =========
@@ -31,9 +33,12 @@ function avatarHTML(emp, size = "", id = "") {
   const cls = "avatar" + (size ? " avatar-" + size : "");
   const idAttr = id ? ` id="${id}"` : "";
   const initial = emp.name.charAt(0);
-  if (emp.photo) return `<div class="${cls}"${idAttr}><img src="${emp.photo}" alt="${esc(emp.name)}" onerror="this.remove();this.parentElement.textContent='${initial}'"></div>`;
+  if (emp.photo) return `<div class="${cls}"${idAttr}><img src="${emp.photo}" alt="${esc(emp.name)}" onerror="var p=this.parentElement,a=this.alt;this.remove();p.textContent=a.charAt(0)"></div>`;
   return `<div class="${cls}"${idAttr}>${esc(initial)}</div>`;
 }
+
+// "3 yrs experience · description": the profile details stored in the database, shown wherever one employee is shown
+const metaLine = (e) => [e.yoe != null ? `${e.yoe} yr${e.yoe === 1 ? "" : "s"} experience` : "", e.desc || ""].filter(Boolean).join(" · ");
 
 function renderStats() {
   const ready = readiness();
@@ -119,6 +124,7 @@ function empLogin() {
   $("#empAvatar").outerHTML = avatarHTML(loggedInEmployee, "xl", "empAvatar");
   $("#empName").textContent = loggedInEmployee.name;
   $("#empRole").textContent = loggedInEmployee.role;
+  $("#empMeta").textContent = metaLine(loggedInEmployee);
 
   // Render skill bars
   renderEmpSkills(loggedInEmployee, SKILLS);
@@ -200,7 +206,8 @@ function renderEmpMentors(emp) {
     : `<p class="muted">${first} meets every required level.</p>`);
 }
 function openModal(emp) {
-  $("#modalName").textContent = emp.name; $("#modalRole").textContent = emp.role;
+  $("#modalName").textContent = emp.name; $("#modalRole").textContent = emp.role; $("#modalMeta").textContent = metaLine(emp);
+  $("#modalAvatar").outerHTML = avatarHTML(emp, "sm", "modalAvatar");
   $("#empModal").dataset.emp = emp.id;
   radar($("#modalRadar"), names, targets, emp.s);
   renderEmpMentors(emp);
@@ -433,15 +440,15 @@ route();
 renderEmpSelect();
 $("#empRoadmapRole").innerHTML = NEXT_GEN_ROLES.map((r) => `<option>${esc(r)}</option>`).join("");
 
-// Mock toggle: on by default (ai.js), remembered per browser tab (ui.js)
+// Mock toggle: on by default (ai.js), saved in the database (ui.js -> roster.js)
 $("#mockToggle").addEventListener("change", (e) => {
   ai.useMock = e.target.checked;
-  setMockPref(ai.useMock); // remembered for this tab, so the start page agrees; also toggles "Reset to demo data"
+  setMockPref(ai.useMock); // saved in the database, so the start page agrees; also toggles "Reset to demo data"
   setDemo(ai.useMock);
   // When toggling to mock mode, revert AI-estimated targets to seed defaults
   if (ai.useMock) {
-    const seedTargets = getSeedTargets();
-    SKILLS.forEach((s, i) => { s.target = seedTargets[i]; });
+    const saved = getSavedTargets(); // AI-estimated levels are never saved: go back to what the database holds
+    SKILLS.forEach((s, i) => { s.target = saved[i]; });
     cache.aiCost = null; // clear AI cost estimates
     refreshAll({});
   }

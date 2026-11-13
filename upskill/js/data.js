@@ -1,4 +1,5 @@
-// Seed/demo data + mock AI responses. Gap = target level - team average (computed locally, not by AI).
+// Skill definitions + mock AI responses. Gap = target level - team average (computed locally, not by AI).
+// SKILLS[].target are only first-paint defaults (kept equal to seed/demo_roster.json); the real values come from the database.
 export const SKILLS = [
   { id: "cloud", name: "Cloud & DevOps", target: 4 },
   { id: "data", name: "Data Engineering", target: 4 },
@@ -9,16 +10,9 @@ export const SKILLS = [
   { id: "prod", name: "Product Thinking", target: 3 },
   { id: "story", name: "Data Storytelling", target: 3 },
 ];
-export const EMPLOYEES = [
-  { id: 1, name: "Jonasker Fernandes", role: "Junior Developer", s: [1,1,1,1,2,1,1,1], yoe: 1, stack: "C, C++, basic HTML/CSS", notes: "Fast learner with a strong logical foundation. Needs to move from academic C++ to building full-stack web apps and AI APIs.", target: "AI Automation Engineer", photo: "assets/Jonasker Fernandes.jpeg", desc: "Strong C/C++ foundation, beginning web development journey" },
-  { id: 2, name: "Meera Fernandes", role: "Data Analyst", s: [1,3,2,1,1,2,3,4], yoe: 2, desc: "Data storytelling expert with solid analytics and visualization skills", photo: "assets/Meera.jpeg" },
-  { id: 3, name: "Mavilon Coutino", role: "Systems Administrator", s: [2,1,1,4,1,3,1,1], yoe: 5, stack: "Linux, Bash, network security", notes: "Deep hardware and OS knowledge. The company needs him to pivot into cloud infrastructure and deploying scalable AI models securely.", target: "MLOps Cloud Architect", photo: "assets/Mavilon.jpeg", desc: "Seasoned sysadmin with deep Linux and network security expertise" },
-  { id: 4, name: "Schneider Gracious", role: "Frontend Engineer", s: [1,1,2,1,4,2,3,2], yoe: 3, stack: "React, JavaScript, Tailwind", notes: "Excellent UI/UX skills. Needs backend database architecture and how to connect frontends to LLM streaming endpoints.", target: "Full-Stack AI Developer", photo: "assets/Schneider.jpeg", desc: "Skilled frontend developer proficient in React and modern CSS" },
-  { id: 5, name: "Karan Prabhu", role: "QA Engineer", s: [2,1,1,2,2,2,2,1], yoe: 2, desc: "Detail-oriented QA specialist with cloud and backend testing skills", photo: "assets/Karan.jpeg" },
-  { id: 6, name: "Isha Kamat", role: "Product Manager", s: [1,2,2,1,1,1,4,3], yoe: 4, desc: "Strategic product thinker with strong data storytelling ability", photo: "assets/isha.jpeg" },
-  { id: 7, name: "Vikram Gaonkar", role: "Security Analyst", s: [2,1,1,4,1,2,1,1], yoe: 3, desc: "Cybersecurity specialist focused on network defense and threat analysis", photo: "assets/Vikram.jpeg" },
-  { id: 8, name: "Dean Dsilva", role: "ML Engineer", s: [2,4,4,2,1,3,2,2], yoe: 4, desc: "ML engineer with strong data engineering and GenAI experience", photo: "assets/Dean Dsilva.jpeg" },
-];
+// Employees are NOT hardcoded any more: roster.js fills this array from the database (server.py) before the first render.
+// The demo employees live in seed/demo_roster.json and are loaded into the database on first run / "Reset to demo data".
+export const EMPLOYEES = [];
 export const NEXT_GEN_ROLES = ["AI Engineer", "Platform Engineer", "Data Product Manager", "AI Security Specialist", "AI Workflow Automation Specialist", "AI Automation Engineer", "Full-Stack AI Developer", "MLOps Cloud Architect"];
 
 export const MOCK = {

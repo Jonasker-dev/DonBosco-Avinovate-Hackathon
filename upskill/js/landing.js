@@ -5,10 +5,11 @@ import { loadSaved, isCustom } from "./roster.js";
 import { avg, buildGaps, readiness } from "./gaps.js";
 import { initFX, countUp } from "./fx.js";
 import { radar } from "./radar.js";
-import { $, esc, initThemeToggle, getMockPref, setMockPref } from "./ui.js";
+import { $, esc, initThemeToggle, getMockPref, setMockPref, showServerError } from "./ui.js";
 import { initDataModal } from "./datamodal.js";
 
-await loadSaved(); // restore imported data (localStorage -> IndexedDB -> data/roster.json) before the first render
+try { await loadSaved(); } // read the roster (employees, photos, levels) from the database before the first render
+catch (e) { showServerError(e); throw e; }
 
 // Everything on this page is computed from the live data, nothing is hardcoded
 function render() {

@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <script>try{if(localStorage.getItem("upskill_theme")==="dark")document.body.classList.add("dark");if(sessionStorage.getItem("upskill_mock")!=="0")document.body.classList.add("mock")}catch(e){document.body.classList.add("mock")}</script>
+  <!--BOOT-->
   <canvas id="fx" aria-hidden="true"></canvas>
 
   <!-- Print-only title block (filled by main.js right before printing) -->
@@ -142,6 +142,7 @@
           <div>
             <h3 id="empName">—</h3>
             <span class="muted" id="empRole">—</span>
+            <div class="muted" id="empMeta"></div>
           </div>
         </div>
         <div id="empSkillBars" class="emp-skill-bars"></div>
@@ -187,7 +188,7 @@
   <div class="modal" id="empModal" role="dialog" aria-modal="true" aria-labelledby="modalName">
     <div class="modal-box">
       <div class="card-head">
-        <div><h2 id="modalName">—</h2><span class="muted" id="modalRole">—</span></div>
+        <div class="emp-info"><div class="avatar avatar-sm" id="modalAvatar">A</div><div><h2 id="modalName">—</h2><span class="muted" id="modalRole">—</span><div class="muted" id="modalMeta"></div></div></div>
         <button class="btn btn-ghost btn-sm" id="modalClose" aria-label="Close">✕</button>
       </div>
       <div id="modalRadar" class="radar-wrap"></div>
