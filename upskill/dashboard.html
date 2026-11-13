@@ -65,12 +65,13 @@
         <button class="subtab active" type="button" role="tab" aria-selected="true" aria-controls="pane-radar" data-sub="radar">Company skill radar</button>
         <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="pane-heatmap" data-sub="heatmap">Competency heatmap</button>
         <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="pane-foresight" data-sub="foresight">Market foresight &amp; training pathway</button>
+        <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="pane-roster" data-sub="roster">Team roster</button>
       </div>
       <button class="btn btn-ghost btn-sm" id="exportBtn" title="Prints all three sections, with the full heatmap, to PDF">⬇ Export PDF</button>
     </nav>
 
     <section class="card hr-pane active" id="pane-radar" data-pane="radar">
-      <div class="card-head"><h2>Company skill radar</h2></div>
+      <div class="card-head"><h2>Company skill radar</h2><button class="btn btn-sm" id="aiTargetsBtn" title="Uses AI to estimate optimal required levels based on skill gaps and market demand">🤖 AI: Estimate Required Levels</button></div>
       <div class="radar-split"><div id="companyRadar" class="radar-wrap"></div><div id="radarCallout"></div></div>
     </section>
 
@@ -85,7 +86,10 @@
       <div class="scroll heat-scroll"><table id="heatmap"></table></div>
       <div class="gaps-head">
         <h3>Skill gaps <span class="muted">· click a bar to see why</span></h3>
-        <span class="tag warn">ILLUSTRATIVE cost &amp; time</span>
+        <div class="row">
+          <button class="btn btn-sm" id="aiCostBtn" title="Uses AI to estimate realistic cost and time to close gaps">🤖 AI: Estimate Cost &amp; Time</button>
+          <span class="tag warn" id="costTag">ILLUSTRATIVE cost &amp; time</span>
+        </div>
       </div>
       <div id="gapBars" class="bars"></div>
       <p class="muted fine" id="estNote"></p>
@@ -97,6 +101,11 @@
         <button class="btn" id="analyzeBtn">Analyze with AI</button>
       </div>
       <div id="insights" class="empty">Run the analysis to forecast emerging tech demand and a company-wide training pathway.</div>
+    </section>
+
+    <section class="card hr-pane" id="pane-roster" data-pane="roster">
+      <div class="card-head"><h2>Team roster</h2><span class="muted" id="rosterCount"></span></div>
+      <div id="teamRoster" class="roster-grid"></div>
     </section>
   </main>
 
@@ -129,7 +138,7 @@
       </div>
       <div class="emp-profile-content">
         <div class="emp-info">
-          <div class="avatar" id="empAvatar">A</div>
+          <div class="avatar avatar-xl" id="empAvatar">A</div>
           <div>
             <h3 id="empName">—</h3>
             <span class="muted" id="empRole">—</span>

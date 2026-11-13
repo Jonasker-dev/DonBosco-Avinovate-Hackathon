@@ -1,6 +1,7 @@
 // Manage data modal: editable required levels + CSV import + reset. Shared by the landing page and the dashboard.
 // It injects its own markup, so each page only needs <div id="toasts"> and the stylesheet.
 // All roster changes go through roster.js; the page passes onChange() to re-render itself afterwards.
+// v9: NO localStorage persistence. Everything in memory.
 import { SKILLS, EMPLOYEES } from "./data.js";
 import { setTarget, readRoster, commitImport, resetRoster, rosterCSV, isCustom } from "./roster.js";
 import { avg } from "./gaps.js";
@@ -22,11 +23,13 @@ const MARKUP = `
 
     <section class="data-sec">
       <h3>2 · Import employees from CSV</h3>
-      <p class="muted">Columns: <code>name</code>, <code>role</code>, then one column per skill scored 0-5 (headers as in the template). Optional: <code>target_role</code>. Imported data is kept in this browser (and in <code>data/roster.json</code> when you run <code>server.py</code>).</p>
+      <p class="muted">Columns: <code>name</code>, <code>role</code>, then one column per skill scored 0-5 (headers as in the template). Optional: <code>target_role</code>, <code>description</code>, <code>yoe</code> (years of experience), <code>photo</code> (path to image file).</p>
       <div class="row">
         <label class="btn btn-ghost btn-sm file-btn">📄 Choose CSV file<input type="file" id="csvFile" accept=".csv,.tsv,.txt,text/csv" class="sr"></label>
+        <label class="btn btn-ghost btn-sm file-btn">🖼 Add photos<input type="file" id="photoFiles" accept="image/*" multiple class="sr"></label>
         <button class="btn btn-ghost btn-sm" id="csvTemplate" type="button">⬇ Download template</button>
       </div>
+      <div id="photoPreview" class="photo-preview"></div>
       <textarea id="csvText" rows="6" spellcheck="false" aria-label="CSV text" placeholder="Paste CSV here, or drop a .csv file onto this box"></textarea>
       <div id="csvPreview" class="csv-preview" aria-live="polite"></div>
       <div class="row">
@@ -41,6 +44,11 @@ const MARKUP = `
     </div>
   </div>
 </div>`;
+
+// Photo storage: in-memory map of filename -> data URL
+const photoStore = new Map();
+// Normalize a string for photo-employee matching: lowercase, strip non-alphanumeric
+const photoNorm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
 
 // onChange({ rosterChanged }) runs after every edit. Returns { open }.
 export function initDataModal({ onChange = () => {} } = {}) {
@@ -59,13 +67,35 @@ export function initDataModal({ onChange = () => {} } = {}) {
   };
   // "Reset to demo data" is shown by CSS in Mock mode only (body.mock); it is disabled while the demo data is active
   const syncSource = () => {
-    $("#dataSource").textContent = isCustom() ? `Using your data (${EMPLOYEES.length} employees). Saved in this browser.` : `Using the built-in demo dataset (${EMPLOYEES.length} employees).`;
+    $("#dataSource").textContent = isCustom() ? `Using your data (${EMPLOYEES.length} employees).` : `Using the built-in demo dataset (${EMPLOYEES.length} employees).`;
     $("#resetData").disabled = !isCustom();
   };
   const setT = (i, v) => { const t = setTarget(i, v); syncRow(i, t); onChange({}); syncSource(); };
   const syncModal = () => { ed.innerHTML = targetRows(); SKILLS.forEach((s, i) => syncRow(i, s.target)); syncSource(); };
   ed.addEventListener("click", (e) => { const b = e.target.closest("button[data-i]"); if (b && !b.disabled) setT(+b.dataset.i, SKILLS[+b.dataset.i].target + +b.dataset.d); });
   ed.addEventListener("change", (e) => { const inp = e.target.closest("input[data-i]"); if (inp) setT(+inp.dataset.i, inp.value); });
+
+  // Photo upload: store photos as data URLs keyed by filename
+  $("#photoFiles").addEventListener("change", (e) => {
+    const files = e.target.files;
+    if (!files.length) return;
+    let count = 0;
+    for (const f of files) {
+      if (f.size > 2e6) { toast(`${f.name} too large (max 2 MB)`, true); continue; }
+      const reader = new FileReader();
+      reader.onload = () => { photoStore.set(f.name.toLowerCase(), reader.result); count++; updatePhotoPreview(); };
+      reader.readAsDataURL(f);
+    }
+    e.target.value = "";
+  });
+  function updatePhotoPreview() {
+    const pp = $("#photoPreview");
+    if (!photoStore.size) { pp.innerHTML = ""; return; }
+    pp.innerHTML = `<span class="muted">${photoStore.size} photo${photoStore.size === 1 ? "" : "s"} ready to link:</span>` +
+      [...photoStore.entries()].map(([k, url]) =>
+        `<span class="photo-thumb"><img src="${url}" alt="${esc(k)}" title="${esc(k)}"><small>${esc(k)}</small></span>`
+      ).join("");
+  }
 
   // CSV: validate while typing; nothing is applied until "Import employees"
   const preview = () => {
@@ -77,8 +107,8 @@ export function initDataModal({ onChange = () => {} } = {}) {
     const n = r.employees.length;
     prev.innerHTML = `<div class="ok-line">✓ ${n} employee${n === 1 ? "" : "s"} ready to import</div>`
       + (r.warnings.length ? `<ul>${r.warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : "")
-      + `<div class="scroll"><table><tr><th>Name</th><th>Role</th>${names().map((x) => `<th>${esc(x)}</th>`).join("")}</tr>`
-      + r.employees.slice(0, 5).map((e) => `<tr><td>${esc(e.name)}</td><td>${esc(e.role)}</td>${e.s.map((v) => `<td>${v}</td>`).join("")}</tr>`).join("") + `</table></div>`
+      + `<div class="scroll"><table><tr><th>Name</th><th>Role</th>${names().map((x) => `<th>${esc(x)}</th>`).join("")}<th>Desc</th><th>YoE</th></tr>`
+      + r.employees.slice(0, 5).map((e) => `<tr><td>${esc(e.name)}</td><td>${esc(e.role)}</td>${e.s.map((v) => `<td>${v}</td>`).join("")}<td>${esc(e.desc || "—")}</td><td>${e.yoe ?? "—"}</td></tr>`).join("") + `</table></div>`
       + (n > 5 ? `<small class="muted">…and ${n - 5} more</small>` : "");
   };
   txt.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(preview, 200); });
@@ -98,12 +128,36 @@ export function initDataModal({ onChange = () => {} } = {}) {
   });
   importBtn.addEventListener("click", () => {
     if (!parsed) return;
+    // Match uploaded photos to employees by normalized name (strips spaces, hyphens, case)
+    if (photoStore.size) {
+      // Build a lookup of normalized filename base -> data URL
+      const photoLookup = [];
+      for (const [fname, dataUrl] of photoStore) {
+        const base = photoNorm(fname.replace(/\.(jpe?g|png|gif|webp|bmp)$/i, ""));
+        photoLookup.push({ base, dataUrl });
+      }
+      let matched = 0;
+      parsed.forEach((emp) => {
+        if (emp.photo) return; // already has a photo from CSV column
+        const nameNorm = photoNorm(emp.name);
+        // Try: exact match, then name contains filename, then filename contains name, then first-name match
+        const firstName = photoNorm(emp.name.split(/\s+/)[0]);
+        const hit = photoLookup.find((p) => p.base === nameNorm)
+          || photoLookup.find((p) => nameNorm.includes(p.base) && p.base.length >= 3)
+          || photoLookup.find((p) => p.base.includes(nameNorm) && nameNorm.length >= 3)
+          || photoLookup.find((p) => p.base === firstName && firstName.length >= 3);
+        if (hit) { emp.photo = hit.dataUrl; matched++; }
+      });
+      if (matched) toast(`📷 Matched ${matched} photo${matched === 1 ? "" : "s"} to employees`);
+      else if (photoStore.size) toast("⚠ No photos matched employee names. Name your photos to match employee names (e.g., john.jpg for John Smith).", true);
+    }
     const added = parsed.length, total = commitImport(parsed, $("#csvMode").value);
-    txt.value = ""; preview(); onChange({ rosterChanged: true }); syncModal();
+    txt.value = ""; preview(); photoStore.clear(); updatePhotoPreview();
+    onChange({ rosterChanged: true }); syncModal();
     toast(`Imported ${added} employee${added === 1 ? "" : "s"} · ${total} in roster`);
   });
-  // Reset wipes the imported data from every storage layer (see roster.js) and restores the seed
-  $("#resetData").addEventListener("click", () => { resetRoster(); onChange({ rosterChanged: true }); syncModal(); toast("Demo data restored"); });
+  // Reset wipes all in-memory state and restores the seed
+  $("#resetData").addEventListener("click", () => { resetRoster(); photoStore.clear(); updatePhotoPreview(); onChange({ rosterChanged: true }); syncModal(); toast("Demo data restored"); });
 
   const close = () => { if (!modal.classList.contains("open")) return; modal.classList.remove("open"); opener?.focus?.(); };
   const open = () => { opener = document.activeElement; syncModal(); modal.classList.add("open"); $("#dataClose").focus(); };

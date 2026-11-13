@@ -122,6 +122,39 @@ export function normalizeRoadmap(data) {
     .map((w, i) => ({ week: w.week ?? i + 1, topic: String(w.topic || w.title), action_item: String(w.action_item || w.action) }));
 }
 
+// Estimate AI-recommended required levels based on employee data and market context
+export async function estimateRequiredLevels(skills, employees) {
+  const skillInfo = skills.map((s, i) => {
+    const scores = employees.map((e) => e.s[i]);
+    const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+    return `${s.name} (current avg: ${avg}, current target: ${s.target})`;
+  }).join("; ");
+  const prompt = `You are an L&D strategist analyzing a workforce of ${employees.length} employees across ${skills.length} skills.
+Current skills and averages: ${skillInfo}.
+
+Analyze the biggest skill gaps and recommend optimal required levels (1-5 scale) for each skill.
+Consider: market demand for each skill, how far behind the team is, and realistic improvement targets.
+Push targets higher where the gap is critical and market demand is high.
+
+Reply with strict JSON: {"targets": [number, number, ...]} — exactly ${skills.length} numbers (1-5), one per skill in the same order.`;
+
+  return askAI(prompt, "aiTargets");
+}
+
+// Estimate realistic cost and time to close skill gaps using AI
+export async function estimateCostTime(skills, employees, gaps) {
+  const gapInfo = gaps.map((g) => `${g.name}: avg ${g.avg.toFixed(1)} vs target ${g.target} (gap: ${g.gap.toFixed(1)})`).join("; ");
+  const prompt = `You are a training budget analyst. A company of ${employees.length} employees has these skill gaps:
+${gapInfo}
+
+For each skill, estimate the realistic cost (USD) and time (weeks) to close the gap through training.
+Consider: group training discounts, online vs instructor-led, certification costs, and parallel training.
+
+Reply with strict JSON: {"estimates": {"${skills.map((s) => s.id).join('": {"cost": number, "time": "X weeks", "reasoning": "..."}, "')}" : {"cost": number, "time": "X weeks", "reasoning": "..."}}}`;
+
+  return askAI(prompt, "costTime");
+}
+
 // Fetch the top 3 in-demand skills for ONE category (picked in the drawer's selector).
 // Live mode: Gemini searches the web (see geminiSearch), then Groq/Meta answer from model knowledge only.
 export async function fetchMarketTrends(category, gap = null) {

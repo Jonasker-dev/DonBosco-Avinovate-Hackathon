@@ -10,14 +10,14 @@ export const SKILLS = [
   { id: "story", name: "Data Storytelling", target: 3 },
 ];
 export const EMPLOYEES = [
-  { id: 1, name: "Jonasker Fernandes", role: "Junior Developer", s: [1,1,1,1,2,1,1,1], yoe: 1, stack: "C, C++, basic HTML/CSS", notes: "Fast learner with a strong logical foundation. Needs to move from academic C++ to building full-stack web apps and AI APIs.", target: "AI Automation Engineer" },
-  { id: 2, name: "Meera Fernandes", role: "Data Analyst", s: [1,3,2,1,1,2,3,4] },
-  { id: 3, name: "Mavilon Coutino", role: "Systems Administrator", s: [2,1,1,4,1,3,1,1], yoe: 5, stack: "Linux, Bash, network security", notes: "Deep hardware and OS knowledge. The company needs him to pivot into cloud infrastructure and deploying scalable AI models securely.", target: "MLOps Cloud Architect" },
-  { id: 4, name: "Schneider Gracious", role: "Frontend Engineer", s: [1,1,2,1,4,2,3,2], yoe: 3, stack: "React, JavaScript, Tailwind", notes: "Excellent UI/UX skills. Needs backend database architecture and how to connect frontends to LLM streaming endpoints.", target: "Full-Stack AI Developer" },
-  { id: 5, name: "Karan Prabhu", role: "QA Engineer", s: [2,1,1,2,2,2,2,1] },
-  { id: 6, name: "Isha Kamat", role: "Product Manager", s: [1,2,2,1,1,1,4,3] },
-  { id: 7, name: "Vikram Gaonkar", role: "Security Analyst", s: [2,1,1,4,1,2,1,1] },
-  { id: 8, name: "Tara Pinto", role: "ML Engineer", s: [2,4,4,2,1,3,2,2] },
+  { id: 1, name: "Jonasker Fernandes", role: "Junior Developer", s: [1,1,1,1,2,1,1,1], yoe: 1, stack: "C, C++, basic HTML/CSS", notes: "Fast learner with a strong logical foundation. Needs to move from academic C++ to building full-stack web apps and AI APIs.", target: "AI Automation Engineer", photo: "assets/Jonasker Fernandes.jpeg", desc: "Strong C/C++ foundation, beginning web development journey" },
+  { id: 2, name: "Meera Fernandes", role: "Data Analyst", s: [1,3,2,1,1,2,3,4], yoe: 2, desc: "Data storytelling expert with solid analytics and visualization skills", photo: "assets/Meera.jpeg" },
+  { id: 3, name: "Mavilon Coutino", role: "Systems Administrator", s: [2,1,1,4,1,3,1,1], yoe: 5, stack: "Linux, Bash, network security", notes: "Deep hardware and OS knowledge. The company needs him to pivot into cloud infrastructure and deploying scalable AI models securely.", target: "MLOps Cloud Architect", photo: "assets/Mavilon.jpeg", desc: "Seasoned sysadmin with deep Linux and network security expertise" },
+  { id: 4, name: "Schneider Gracious", role: "Frontend Engineer", s: [1,1,2,1,4,2,3,2], yoe: 3, stack: "React, JavaScript, Tailwind", notes: "Excellent UI/UX skills. Needs backend database architecture and how to connect frontends to LLM streaming endpoints.", target: "Full-Stack AI Developer", photo: "assets/Schneider.jpeg", desc: "Skilled frontend developer proficient in React and modern CSS" },
+  { id: 5, name: "Karan Prabhu", role: "QA Engineer", s: [2,1,1,2,2,2,2,1], yoe: 2, desc: "Detail-oriented QA specialist with cloud and backend testing skills", photo: "assets/Karan.jpeg" },
+  { id: 6, name: "Isha Kamat", role: "Product Manager", s: [1,2,2,1,1,1,4,3], yoe: 4, desc: "Strategic product thinker with strong data storytelling ability", photo: "assets/isha.jpeg" },
+  { id: 7, name: "Vikram Gaonkar", role: "Security Analyst", s: [2,1,1,4,1,2,1,1], yoe: 3, desc: "Cybersecurity specialist focused on network defense and threat analysis", photo: "assets/Vikram.jpeg" },
+  { id: 8, name: "Dean Dsilva", role: "ML Engineer", s: [2,4,4,2,1,3,2,2], yoe: 4, desc: "ML engineer with strong data engineering and GenAI experience", photo: "assets/Dean Dsilva.jpeg" },
 ];
 export const NEXT_GEN_ROLES = ["AI Engineer", "Platform Engineer", "Data Product Manager", "AI Security Specialist", "AI Workflow Automation Specialist", "AI Automation Engineer", "Full-Stack AI Developer", "MLOps Cloud Architect"];
 
@@ -126,4 +126,26 @@ MOCK.roadmap_4 = [
   { week: 2, topic: "LLM Streaming Endpoints", action_item: "Implement server-sent events so your React UI renders model output token by token, with abort and error states." },
   { week: 3, topic: "Retrieval with pgvector", action_item: "Embed a set of company docs, store vectors in pgvector, and add retrieval so answers cite their sources." },
   { week: 4, topic: "Ship It: Auth, Limits & Deploy", action_item: "Add login, rate limiting and logging, deploy the full-stack app, and present a live demo to your team." },
+];
+
+// Mock AI-estimated required levels (used when "AI: Estimate Required Levels" is clicked in mock mode)
+MOCK.aiTargets = [5, 5, 5, 4, 3, 4, 3, 4]; // cloud, data, genai, sec, web, api, prod, story
+
+// Mock AI cost/time estimates per skill (used when "AI: Estimate Cost & Time" is clicked in mock mode)
+MOCK.costTime = {
+  cloud: { cost: 18400, time: "14 weeks", reasoning: "Most employees are 2-3 levels below target. Recommend cloud certification bootcamp." },
+  data:  { cost: 12200, time: "10 weeks", reasoning: "Mixed proficiency; Dean and Meera can mentor others. Focus on hands-on data pipeline projects." },
+  genai: { cost: 22000, time: "16 weeks", reasoning: "Largest gap company-wide. Phased rollout: GenAI literacy first, then applied LLM projects." },
+  sec:   { cost: 5600,  time: "6 weeks",  reasoning: "Vikram and Mavilon anchor the team. Short workshops fill the remaining gaps." },
+  web:   { cost: 3200,  time: "4 weeks",  reasoning: "Schneider leads; others need only a refresher. Pair programming recommended." },
+  api:   { cost: 9600,  time: "10 weeks", reasoning: "Moderate gap. Backend bootcamp with API design patterns and database architecture." },
+  prod:  { cost: 4800,  time: "6 weeks",  reasoning: "Isha and Schneider already strong. Targeted product-thinking workshops for engineers." },
+  story: { cost: 6400,  time: "8 weeks",  reasoning: "Meera excels here. Data storytelling masterclass with real company dashboards." },
+};
+
+// Mock market trends used when "Live Market Demand" toggle is OFF (premade data)
+MOCK.premadeMarketTrends = [
+  { name: "Agentic AI Workflows", surge: "+214%", urgency: "Critical", desc: "Multi-step LLM agents automating operations, support and internal tooling." },
+  { name: "RAG Pipeline Engineering", surge: "+155%", urgency: "Critical", desc: "Enterprise GenAI's most common build: chunking, embedding and retrieval from company docs." },
+  { name: "Platform Engineering", surge: "+170%", urgency: "Critical", desc: "Internal developer platforms replacing ad-hoc DevOps with self-service environments." },
 ];

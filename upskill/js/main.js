@@ -1,15 +1,19 @@
 // Dashboard entry point (dashboard.html): renders both dashboards from the roster and wires all AI features.
 // The start page lives in index.html + landing.js.
-import { SKILLS, EMPLOYEES, NEXT_GEN_ROLES, MARKET_CATEGORIES, matchesGap } from "./data.js";
-import { askAI, ai, generateUpskillRoadmap, fetchMarketTrends, normalizeRoadmap } from "./ai.js";
+// v9: NO localStorage for data. Everything in memory. Reset button clears all state.
+import { SKILLS, EMPLOYEES, NEXT_GEN_ROLES, MARKET_CATEGORIES, MOCK, matchesGap } from "./data.js";
+import { askAI, ai, generateUpskillRoadmap, fetchMarketTrends, normalizeRoadmap, estimateRequiredLevels, estimateCostTime } from "./ai.js";
 import { initFX, countUp } from "./fx.js";
-import { loadSaved, isCustom } from "./roster.js";
+import { loadSaved, isCustom, getSeedTargets } from "./roster.js";
 import { avg, buildGaps, readiness, skillIndex, belowTarget, estimate, estText, formulaText, money, matchMentors, mentorsFor, ESTIMATE, MENTOR } from "./gaps.js";
 import { radar } from "./radar.js";
 import { $, $$, esc, toast, withLoading, initTabs, initThemeToggle, renderTrends, renderTrendSkeleton, renderCategoryChips, renderEmpSkills, renderRoadmap, setDemo, isMock, getMockPref, setMockPref, isTopModal } from "./ui.js";
 import { initDataModal } from "./datamodal.js";
 
-await loadSaved(); // restore custom targets / imported roster (localStorage -> IndexedDB -> data/roster.json) before the first computation
+await loadSaved(); // no-op in v9 (kept for compatibility)
+
+// ========= IN-MEMORY CACHES (no localStorage) =========
+const cache = { insights: null, roadmaps: {}, aiCost: null };
 
 // ========= HR DASHBOARD LOGIC =========
 // Derived numbers live in `let`s and are rebuilt by recompute() whenever targets or the roster change
@@ -20,9 +24,16 @@ function recompute() {
   topGap = gaps[0]; // the company's biggest deficit (target minus team average)
 }
 const sig = () => gaps.map((g) => g.id + g.target + g.avg.toFixed(2)).join("|"); // fingerprint of the numbers an AI analysis was based on
-const save = (k, v) => { try { localStorage.setItem("upskill_" + k, JSON.stringify(v)); } catch {} };
-const load = (k) => { try { return JSON.parse(localStorage.getItem("upskill_" + k)); } catch { return null; } };
 const heat = (v) => `rgba(var(--heat-color),${(0.08 + (v / 5) * 0.7).toFixed(2)})`;
+
+// Avatar helper: shows photo if employee has one, otherwise shows initial letter
+function avatarHTML(emp, size = "", id = "") {
+  const cls = "avatar" + (size ? " avatar-" + size : "");
+  const idAttr = id ? ` id="${id}"` : "";
+  const initial = emp.name.charAt(0);
+  if (emp.photo) return `<div class="${cls}"${idAttr}><img src="${emp.photo}" alt="${esc(emp.name)}" onerror="this.remove();this.parentElement.textContent='${initial}'"></div>`;
+  return `<div class="${cls}"${idAttr}>${esc(initial)}</div>`;
+}
 
 function renderStats() {
   const ready = readiness();
@@ -35,18 +46,36 @@ function renderStats() {
 // One heatmap table, used by the card and by the maximized view (so they can never differ)
 const heatTable = () => `<thead><tr><th></th>${SKILLS.map((s) => `<th>${esc(s.name)}<br><small>target ${s.target}</small></th>`).join("")}</tr></thead><tbody>`
   + EMPLOYEES.map((e) => `<tr data-emp="${e.id}" class="clickable"><td><b>${esc(e.name)}</b><br><small class="muted">${esc(e.role)}</small></td>${e.s.map((v) => `<td class="cell" style="background:${heat(v)}">${v}</td>`).join("")}</tr>`).join("") + `</tbody>`;
+
 function renderHeatmap() {
   const html = heatTable(), n = EMPLOYEES.length;
   $("#heatmap").innerHTML = html; $("#heatmapMax").innerHTML = html;
   $("#heatCount").textContent = `${n} employee${n === 1 ? "" : "s"} · click one for their AI pathway`;
   $("#heatMaxCount").textContent = `All ${n} employee${n === 1 ? "" : "s"} · click a row for their AI pathway`;
-  // Each bar is a button: click = the "Why this gap?" drill-down. Right side = ILLUSTRATIVE cost / time to close.
+  renderGapBars();
+}
+
+// Render gap bars with current cost/time (illustrative or AI-estimated)
+function renderGapBars() {
+  const useAI = cache.aiCost && !ai.useMock;
   $("#gapBars").innerHTML = gaps.map((g) => {
     const c = g.gap >= 1.5 ? "var(--danger)" : g.gap >= 0.75 ? "var(--warning)" : "var(--success)";
-    return `<button type="button" class="bar" data-skill="${g.id}" aria-label="${esc(g.name)}: why is this a gap?"><span class="bar-name">${esc(g.name)}</span><span class="track"><span class="fill" style="width:${(g.avg / 5) * 100}%;background:${c}"></span></span><span class="muted bar-val">${g.avg.toFixed(1)} / ${g.target}</span><span class="bar-est">${esc(estText(estimate(skillIndex(g.id))))}</span></button>`;
+    let estLabel;
+    if (useAI && cache.aiCost[g.id]) {
+      const ct = cache.aiCost[g.id];
+      estLabel = `≈ $${Math.round(ct.cost).toLocaleString("en-US")} · ~${ct.time}`;
+    } else {
+      estLabel = estText(estimate(skillIndex(g.id)));
+    }
+    return `<button type="button" class="bar" data-skill="${g.id}" aria-label="${esc(g.name)}: why is this a gap?"><span class="bar-name">${esc(g.name)}</span><span class="track"><span class="fill" style="width:${(g.avg / 5) * 100}%;background:${c}"></span></span><span class="muted bar-val">${g.avg.toFixed(1)} / ${g.target}</span><span class="bar-est">${esc(estLabel)}</span></button>`;
   }).join("");
+  const costTag = $("#costTag");
+  if (useAI) { costTag.textContent = "AI-ESTIMATED cost & time"; costTag.className = "tag ok"; }
+  else { costTag.textContent = "ILLUSTRATIVE cost & time"; costTag.className = "tag warn"; }
   const E = ESTIMATE;
-  $("#estNote").innerHTML = `<b>Illustrative estimate, not a quote.</b> Cost to bring everyone below target up to target = levels missing × ${E.hoursPerLevel} h per level × ${E.currency}${E.costPerHour}/h. Time = the slowest learner's gap × ${E.hoursPerLevel} h ÷ ${E.hoursPerWeek} h per week (people train in parallel). Change the assumptions in <code>js/gaps.js</code>.`;
+  $("#estNote").innerHTML = useAI
+    ? `<b>AI-estimated costs and timelines.</b> Based on workforce analysis. Estimates are advisory, not a quote.`
+    : `<b>Illustrative estimate, not a quote.</b> Cost to bring everyone below target up to target = levels missing × ${E.hoursPerLevel} h per level × ${E.currency}${E.costPerHour}/h. Time = the slowest learner's gap × ${E.hoursPerLevel} h ÷ ${E.hoursPerWeek} h per week (people train in parallel). Change the assumptions in <code>js/gaps.js</code>.`;
 }
 
 const tag = (t, cls = "") => `<span class="tag ${cls}">${esc(t)}</span>`;
@@ -64,14 +93,15 @@ async function analyze() {
 Return JSON: {"summary":string,"emerging":[{"tech":string,"horizon":"0-6 months|6-12 months|12-24 months","impact":"high|medium|low","why":string}] (3-4 items),"pathway":[{"phase":string,"actions":[string]}] (3 phases)}. Be concrete and tied to the gaps. The single biggest gap is ${gaps[0].name} (${gaps[0].avg.toFixed(1)}/${gaps[0].target}): at least one emerging item and the first pathway phase must address it directly.`;
   const { data, via } = await askAI(prompt, "insights");
   if (!data.emerging || !data.pathway) throw new Error("Unexpected AI response shape");
-  setDemo(isMock(via)); save("insights", { data, via, sig: sig() }); renderInsights(data, via); toast("Analysis ready via " + via);
+  setDemo(isMock(via)); cache.insights = { data, via, sig: sig() }; renderInsights(data, via); toast("Analysis ready via " + via);
 }
 // Show the cached analysis (flagged stale if targets/roster changed since), or the empty state
 function restoreInsights() {
-  const si = load("insights");
+  const si = cache.insights;
   if (si) renderInsights(si.data, si.via, !!si.sig && si.sig !== sig());
   else { $("#insights").className = "empty"; $("#insights").textContent = EMPTY_INSIGHTS; }
 }
+
 // ========= EMPLOYEE DASHBOARD LOGIC =========
 let loggedInEmployee = null;
 
@@ -85,8 +115,8 @@ function empLogin() {
   $("#empProfile").style.display = "";
   $("#empRoadmapCard").style.display = "";
 
-  // Fill profile info
-  $("#empAvatar").textContent = loggedInEmployee.name.charAt(0);
+  // Fill profile info with avatar photo (xl = 100% bigger)
+  $("#empAvatar").outerHTML = avatarHTML(loggedInEmployee, "xl", "empAvatar");
   $("#empName").textContent = loggedInEmployee.name;
   $("#empRole").textContent = loggedInEmployee.role;
 
@@ -98,7 +128,7 @@ function empLogin() {
   toast(`Welcome back, ${loggedInEmployee.name}!`);
 
   // Restore cached roadmap
-  const cached = load("emp_roadmap_" + loggedInEmployee.id);
+  const cached = cache.roadmaps[loggedInEmployee.id];
   if (cached) renderRoadmap(cached.data, cached.via);
 }
 
@@ -107,6 +137,9 @@ function empLogout() {
   $("#empLoginCard").style.display = "";
   $("#empProfile").style.display = "none";
   $("#empRoadmapCard").style.display = "none";
+  // Restore avatar div for next login
+  const av = document.getElementById("empAvatar") || document.querySelector(".emp-info .avatar");
+  if (av) { av.outerHTML = '<div class="avatar avatar-xl" id="empAvatar">A</div>'; }
   $("#empRoadmap").className = "empty";
   $("#empRoadmap").innerHTML = "Select a target role and click the button above to get your personalized 4-week AI roadmap.";
 }
@@ -117,7 +150,7 @@ async function genRoadmap(emp, role, target) {
   const weeks = normalizeRoadmap(data);
   if (!weeks.length) throw new Error("Unexpected AI response shape");
   setDemo(isMock(via));
-  save("emp_roadmap_" + emp.id, { data: weeks, via });
+  cache.roadmaps[emp.id] = { data: weeks, via };
   renderRoadmap(weeks, via, target);
   toast("Your 4-week upskill path is ready via " + via);
 }
@@ -127,6 +160,34 @@ const empGenerateRoadmap = () => loggedInEmployee && genRoadmap(loggedInEmployee
 function renderCompanyRadar() {
   radar($("#companyRadar"), names, targets, SKILLS.map((_, i) => +avg(i).toFixed(2)));
   $("#radarCallout").innerHTML = `<h3>Biggest gaps</h3>` + gaps.slice(0, 3).map((g, i) => `<div class="tile"><span class="tag">#${i + 1}</span><h3>${esc(g.name)}</h3><span class="muted">Average ${g.avg.toFixed(1)} vs required ${g.target}</span><div class="tile-est">${esc(estText(estimate(skillIndex(g.id))))} <small>illustrative</small></div></div>`).join("");
+}
+
+// ========= TEAM ROSTER =========
+function renderTeamRoster() {
+  const n = EMPLOYEES.length;
+  $("#rosterCount").textContent = `${n} employee${n === 1 ? "" : "s"}`;
+  $("#teamRoster").innerHTML = EMPLOYEES.map((e) => {
+    const miniId = `mini-radar-${e.id}`;
+    return `<div class="roster-card">
+      <div class="roster-card-top">
+        ${avatarHTML(e, "roster")}
+        <div class="roster-info">
+          <h3>${esc(e.name)}</h3>
+          <span class="muted">${esc(e.role)}</span>
+          ${e.yoe != null ? `<span class="muted roster-yoe">📅 ${e.yoe} yr${e.yoe === 1 ? "" : "s"} experience</span>` : ""}
+        </div>
+      </div>
+      ${e.desc ? `<p class="roster-desc">${esc(e.desc)}</p>` : ""}
+      <div class="roster-radar" id="${miniId}"></div>
+    </div>`;
+  }).join("");
+  // Render mini radars after DOM is ready
+  requestAnimationFrame(() => {
+    EMPLOYEES.forEach((e) => {
+      const el = document.getElementById(`mini-radar-${e.id}`);
+      if (el) radar(el, names, targets, e.s);
+    });
+  });
 }
 
 // --- Employee pathway modal (+ "Who can mentor?" for this person's biggest gaps) ---
@@ -144,7 +205,7 @@ function openModal(emp) {
   radar($("#modalRadar"), names, targets, emp.s);
   renderEmpMentors(emp);
   if (emp.target) $("#modalTargetRole").value = emp.target;
-  const c = load("emp_roadmap_" + emp.id);
+  const c = cache.roadmaps[emp.id];
   if (c) renderRoadmap(c.data, c.via, "#modalRoadmap");
   else { $("#modalRoadmap").className = "empty"; $("#modalRoadmap").textContent = "Pick a target role to generate this employee's roadmap."; }
   $("#empModal").classList.add("open");
@@ -164,13 +225,19 @@ function mentorBlock(i, rows) {
 function openGap(id) {
   const i = skillIndex(id); if (i < 0) return;
   const s = SKILLS[i], rows = belowTarget(i), est = estimate(i), n = EMPLOYEES.length;
+  // Use AI cost/time if available
+  const useAI = cache.aiCost && !ai.useMock && cache.aiCost[id];
+  const costLabel = useAI ? `≈ $${Math.round(cache.aiCost[id].cost).toLocaleString("en-US")} · ~${cache.aiCost[id].time}` : estText(est);
+  const costTag = useAI ? "AI-ESTIMATED" : "ILLUSTRATIVE";
+  const costCls = useAI ? "ok" : "warn";
   $("#gapTitle").textContent = s.name;
   $("#gapBody").innerHTML = `<div class="gap-tiles">
       <div class="tile"><b>${avg(i).toFixed(1)} / ${s.target}</b><span class="muted">team average vs required</span></div>
       <div class="tile"><b>${rows.length} of ${n}</b><span class="muted">below target</span></div>
-      <div class="tile est-tile"><b>${esc(estText(est))}</b><span class="muted">to close it <span class="tag warn">ILLUSTRATIVE</span></span></div>
+      <div class="tile est-tile"><b>${esc(costLabel)}</b><span class="muted">to close it <span class="tag ${costCls}">${costTag}</span></span></div>
     </div>
-    ${rows.length ? `<p class="muted fine">${esc(formulaText(est))} Assumptions, not a quote.</p>
+    ${useAI && cache.aiCost[id].reasoning ? `<p class="muted fine"><b>AI reasoning:</b> ${esc(cache.aiCost[id].reasoning)}</p>` : ""}
+    ${rows.length ? `${!useAI ? `<p class="muted fine">${esc(formulaText(est))} Assumptions, not a quote.</p>` : ""}
     <h3>Employees below target</h3>
     <ul class="gap-emps">${rows.map((r) => `<li><button type="button" data-emp="${r.emp.id}"><span class="ge-name"><b>${esc(r.emp.name)}</b><small class="muted">${esc(r.emp.role)}</small></span><span class="track"><span class="fill" style="width:${(r.score / 5) * 100}%;background:var(--${r.deficit >= 2 ? "danger" : "warning"})"></span></span><span class="muted ge-val">${r.score} / ${s.target}</span><span class="tag ${r.deficit >= 2 ? "" : "warn"}">−${r.deficit}</span></button></li>`).join("")}</ul>`
     : `<p class="empty">Everyone meets the required level of ${s.target} for ${esc(s.name)}.</p>`}
@@ -212,8 +279,8 @@ function fillPrintHead() {
     : `<p class="eyebrow">UpskillAI · Workforce report</p><h1>Skill-gap analysis</h1><p>${EMPLOYEES.length} employees · ${isCustom() ? "custom" : "demo"} dataset · ${date}</p>`;
 }
 
-// ========= HR SUB-NAVIGATION (radar | heatmap | foresight) + URL hash =========
-const SUBS = ["radar", "heatmap", "foresight"];
+// ========= HR SUB-NAVIGATION (radar | heatmap | foresight | roster) + URL hash =========
+const SUBS = ["radar", "heatmap", "foresight", "roster"];
 let currentSub = "radar";
 const revealIn = (root) => requestAnimationFrame(() => $$(`${root} .reveal`).forEach((el) => el.classList.add("in")));
 function showSub(id) {
@@ -221,9 +288,10 @@ function showSub(id) {
   $$(".subtab").forEach((b) => { const on = b.dataset.sub === currentSub; b.classList.toggle("active", on); b.setAttribute("aria-selected", String(on)); });
   $$(".hr-pane").forEach((p) => p.classList.toggle("active", p.dataset.pane === currentSub));
   revealIn("#pane-" + currentSub);
+  if (currentSub === "roster") renderTeamRoster();
 }
 let selectTab = () => {};
-function route() { // dashboard.html#heatmap, #radar, #foresight or #employee
+function route() { // dashboard.html#heatmap, #radar, #foresight, #roster or #employee
   const h = location.hash.slice(1);
   showSub(h);
   selectTab(h === "employee" ? "emp" : "hr");
@@ -234,13 +302,14 @@ function route() { // dashboard.html#heatmap, #radar, #foresight or #employee
 // One category at a time (chips). Live results are cached per category so re-clicking a chip is free.
 const TREND_TTL = 6 * 3600000; // 6 h: market demand does not change hourly, and this protects free-tier quota
 let trendCat = MARKET_CATEGORIES[0], trendsLoaded = false;
+const trendCache = {}; // in-memory only
 const SURGE = new Set(["Critical", "High", "Hot", "Rising"]);
 // Mark market skills that address the top company gap AND show strong demand
 const flagGap = (trends) => trends.map((t) => ({ ...t, gapHit: matchesGap(t, topGap.id) && SURGE.has(t.urgency || t.demand || t.level || "") }));
 
 async function loadMarketTrends(force = false) {
   const cat = trendCat, key = "market_" + cat;
-  const cached = load(key);
+  const cached = trendCache[key];
   // Cache applies to LIVE results only; mock is free and always re-rendered
   if (!force && !ai.useMock && cached && Date.now() - cached.ts < TREND_TTL) {
     renderTrends(flagGap(cached.data), cached.via, cat); trendsLoaded = true; return;
@@ -251,7 +320,7 @@ async function loadMarketTrends(force = false) {
     const feed = Array.isArray(data) ? { skills: data } : data;
     const trends = feed.skills || feed.trends || [];
     if (!trends.length) throw new Error("Unexpected AI response shape");
-    if (!isMock(via)) save(key, { data: trends, via, ts: Date.now() });
+    if (!isMock(via)) trendCache[key] = { data: trends, via, ts: Date.now() };
     if (cat !== trendCat) return; // user switched chip while this was loading
     renderTrends(flagGap(trends), via, cat);
     setDemo(isMock(via));
@@ -289,6 +358,30 @@ function initTrendsToggle() {
   });
 }
 
+// ========= AI BUTTONS =========
+
+// AI: Estimate Required Levels (Company Skill Radar)
+async function aiEstimateTargets() {
+  const { data, via } = await estimateRequiredLevels(SKILLS, EMPLOYEES);
+  const newTargets = Array.isArray(data) ? data : data?.targets;
+  if (!Array.isArray(newTargets) || newTargets.length !== SKILLS.length) throw new Error("Unexpected AI response shape");
+  newTargets.forEach((t, i) => { SKILLS[i].target = Math.min(5, Math.max(1, Math.round(t))); });
+  setDemo(isMock(via));
+  refreshAll({});
+  toast("Required levels updated via " + via + " — toggle mock mode to revert");
+}
+
+// AI: Estimate Cost & Time (Competency Heatmap)
+async function aiEstimateCost() {
+  const { data, via } = await estimateCostTime(SKILLS, EMPLOYEES, gaps);
+  const estimates = data?.estimates || data;
+  if (!estimates || typeof estimates !== "object") throw new Error("Unexpected AI response shape");
+  cache.aiCost = estimates;
+  setDemo(isMock(via));
+  renderGapBars();
+  toast("Cost & time estimates updated via " + via);
+}
+
 // ========= HERO META =========
 function renderHeroMeta() {
   const c = isCustom(), t = $("#dataTag");
@@ -303,9 +396,10 @@ function renderEmpSelect() {
 function refreshAll({ rosterChanged = false } = {}) {
   recompute();
   renderStats(); renderHeatmap(); renderCompanyRadar(); renderHeroMeta(); renderGapNote(); restoreInsights();
-  if (rosterChanged) { renderEmpSelect(); if (loggedInEmployee) empLogout(); }
+  if (rosterChanged) { renderEmpSelect(); if (loggedInEmployee) empLogout(); cache.roadmaps = {}; cache.aiCost = null; }
   else if (loggedInEmployee) { renderEmpSkills(loggedInEmployee, SKILLS); radar($("#empRadar"), names, targets, loggedInEmployee.s); }
   trendsLoaded = false; // the drawer re-flags skills against the new biggest gap on next open (live results come from cache, no API call)
+  if (currentSub === "roster") renderTeamRoster();
 }
 
 // ========= WIRING =========
@@ -344,12 +438,21 @@ $("#mockToggle").addEventListener("change", (e) => {
   ai.useMock = e.target.checked;
   setMockPref(ai.useMock); // remembered for this tab, so the start page agrees; also toggles "Reset to demo data"
   setDemo(ai.useMock);
+  // When toggling to mock mode, revert AI-estimated targets to seed defaults
+  if (ai.useMock) {
+    const seedTargets = getSeedTargets();
+    SKILLS.forEach((s, i) => { s.target = seedTargets[i]; });
+    cache.aiCost = null; // clear AI cost estimates
+    refreshAll({});
+  }
   trendsLoaded = false; // drawer re-fetches on next open so mock/live data never get mixed up
   toast(ai.useMock ? "Mock mode on — no API calls" : "⚡ Live AI on — will use API quota");
 });
 
 // HR buttons
 run("#analyzeBtn", "Analyzing with AI...", analyze);
+run("#aiTargetsBtn", "Estimating…", aiEstimateTargets);
+run("#aiCostBtn", "Estimating…", aiEstimateCost);
 
 // Employee buttons
 $("#empLoginBtn").addEventListener("click", empLogin);
