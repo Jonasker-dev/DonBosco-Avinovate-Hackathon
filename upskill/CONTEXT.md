@@ -194,6 +194,9 @@ Record every deviation from this file or new standing rule here, newest first, s
 | 2026-11-13 | "Live Market Demands" sidebar added — Gemini API call on page load, 1hr cache | Fulfills "tracks upcoming technology demands" requirement with zero backend |
 | 2026-11-13 | Employee upskill roadmap uses strict 4-week JSON schema via `generateUpskillRoadmap()` in `ai.js` | Real AI-generated paths, not pre-written; forces `[{week, topic, action_item}]` schema |
 | 2026-11-13 | `ui.js` expanded with `renderTrends()`, `renderEmpSkills()`, `renderRoadmap()`, `initTabs()` | Modular rendering for the two dashboard views |
+| 2026-11-13 | Light mode default + dark mode toggle button | Light mode is new professional default; dark mode is the original Rose Quartz Dark palette |
+| 2026-11-13 | Mock mode ON by default (`ai.useMock: true`, checkbox checked) | Preserve API quota for hackathon presentation; uncheck to go live |
+| 2026-11-13 | Live Market Demands is a toggle, OFF by default | No API calls on page load; user opts in to fetch trends |
 
 
 ---
@@ -208,8 +211,10 @@ Record every deviation from this file or new standing rule here, newest first, s
 - [x] Two-sided UI: HR Dashboard + Employee Dashboard with tab switching
 - [x] Employee login flow with skill profile visualization
 - [x] Employee "Generate My Upskill Path" — real Gemini API call returning strict 4-week JSON roadmap, rendered as week cards
-- [x] "Live Market Demands" sidebar — fetches top 3 trending tech skills from Gemini on page load, cached 1 hour
+- [x] "Live Market Demands" sidebar — toggle (off by default), fetches top 3 trending tech skills from Gemini when toggled on, cached 1 hour
 - [x] Mock data for roadmap and trends (offline fallback)
+- [x] Light mode (default) + dark mode toggle button with localStorage persistence
+- [x] Mock mode ON by default to preserve API quota before hackathon
 - [ ] Not browser-tested against live APIs yet (sandbox had no access). Run `yo.html` and the app first.
 - [ ] Ideas if time allows: CSV import of employees, editable target levels, export pathway as PDF
 
@@ -217,7 +222,7 @@ Record every deviation from this file or new standing rule here, newest first, s
 
 ## 10. Project-Specific Rules & Deviations
 
-- **Palette deviation:** Section 3 colors are overridden by the "Rose Quartz Dark" palette in `css/styles.css` (brand `#F43F5E`, accent `#FDA4AF`, bg `#130A10`). Dark-mode structure, radii and glass rules still apply.
+- **Palette deviation:** Light mode is the new default (bg `#F8F6F7`, surface `#FFFFFF`). Dark mode (toggle button) uses the original "Rose Quartz Dark" palette (brand `#F43F5E`, accent `#FDA4AF`, bg `#130A10`). Dark-mode structure, radii and glass rules still apply.
 - **config.js format:** the real file defines `SECRET_CONFIG_1 {GEMINI_KEY}`, `SECRET_CONFIG_2 {GRQ_KEY}`, `SECRET_CONFIG_3 {META_KEY}`. Keep it and keep `config.example.js` in sync.
 - **AI layer:** public function is `askAI(prompt, mockKey)` in `js/ai.js`, returning `{data, via}`. Chain: Gemini (ListModels fallback) -> Groq (`https://api.groq.com/openai/v1`, json_object) -> Meta Model API (`https://api.meta.ai/v1`, `muse-spark-1.1`) -> mock. Meta may be blocked by browser CORS; that is expected and falls through.
 - **Gaps are computed in JS** (target minus team average). The AI only does forecasting and pathways, so numbers are never hallucinated.

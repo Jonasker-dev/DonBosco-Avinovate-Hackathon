@@ -1,7 +1,7 @@
 // Entry point: renders both dashboards from seed data and wires all AI features.
 import { SKILLS, EMPLOYEES, NEXT_GEN_ROLES } from "./data.js";
 import { askAI, ai, generateUpskillRoadmap, fetchMarketTrends } from "./ai.js";
-import { $, $$, esc, toast, withLoading, initTabs, renderTrends, renderEmpSkills, renderRoadmap } from "./ui.js";
+import { $, $$, esc, toast, withLoading, initTabs, initThemeToggle, renderTrends, renderEmpSkills, renderRoadmap } from "./ui.js";
 
 // ========= HR DASHBOARD LOGIC =========
 const avg = (i) => EMPLOYEES.reduce((a, e) => a + e.s[i], 0) / EMPLOYEES.length;
@@ -112,9 +112,16 @@ async function empGenerateRoadmap() {
 }
 
 // ========= MARKET TRENDS SIDEBAR =========
+let trendsLoaded = false;
+
 async function loadMarketTrends() {
+  // Check localStorage cache first (1 hour TTL)
   const cached = load("market_trends");
-  if (cached && Date.now() - cached.ts < 3600000) { renderTrends(cached.data, cached.via); return; }
+  if (cached && Date.now() - cached.ts < 3600000) {
+    renderTrends(cached.data, cached.via);
+    trendsLoaded = true;
+    return;
+  }
 
   try {
     const { data, via } = await fetchMarketTrends();
@@ -122,11 +129,35 @@ async function loadMarketTrends() {
     if (trends.length) {
       renderTrends(trends, via);
       save("market_trends", { data: trends, via, ts: Date.now() });
+      trendsLoaded = true;
     }
   } catch (e) {
     console.warn("Market trends failed:", e.message);
-    if (cached) renderTrends(cached.data, cached.via);
+    if (cached) { renderTrends(cached.data, cached.via); trendsLoaded = true; }
   }
+}
+
+function initTrendsToggle() {
+  const toggle = $("#trendsToggle");
+  const content = $("#sidebarContent");
+  const offMsg = $("#sidebarOff");
+
+  // Off by default
+  toggle.checked = false;
+  content.style.display = "none";
+  offMsg.style.display = "";
+
+  toggle.addEventListener("change", () => {
+    if (toggle.checked) {
+      content.style.display = "";
+      offMsg.style.display = "none";
+      // Load trends only when toggled on (and not already loaded)
+      if (!trendsLoaded) loadMarketTrends();
+    } else {
+      content.style.display = "none";
+      offMsg.style.display = "";
+    }
+  });
 }
 
 // ========= WIRING =========
@@ -136,6 +167,7 @@ function run(btnSel, label, fn) {
 
 // Boot
 initTabs();
+initThemeToggle();
 renderStats();
 renderHeatmap();
 
@@ -147,8 +179,11 @@ $("#roleSelect").innerHTML = NEXT_GEN_ROLES.map((r) => `<option>${esc(r)}</optio
 $("#empLoginSelect").innerHTML = EMPLOYEES.map((e) => `<option value="${e.id}">${esc(e.name)} — ${esc(e.role)}</option>`).join("");
 $("#empRoadmapRole").innerHTML = NEXT_GEN_ROLES.map((r) => `<option>${esc(r)}</option>`).join("");
 
-// Mock toggle
-$("#mockToggle").addEventListener("change", (e) => { ai.useMock = e.target.checked; toast(ai.useMock ? "Mock mode on" : "Live AI on"); });
+// Mock toggle — checked (on) by default in HTML, ai.useMock is true by default in ai.js
+$("#mockToggle").addEventListener("change", (e) => {
+  ai.useMock = e.target.checked;
+  toast(ai.useMock ? "Mock mode on — no API calls" : "⚡ Live AI on — will use API quota");
+});
 
 // HR buttons
 run("#analyzeBtn", "Analyzing with AI...", analyze);
@@ -159,14 +194,18 @@ $("#empLoginBtn").addEventListener("click", empLogin);
 $("#empLogoutBtn").addEventListener("click", empLogout);
 run("#empRoadmapBtn", "Generating roadmap...", empGenerateRoadmap);
 
-// Sidebar refresh
+// Sidebar: trends toggle (off by default, no auto-load)
+initTrendsToggle();
+
+// Sidebar refresh button
 $("#refreshTrends").addEventListener("click", () =>
-  withLoading($("#refreshTrends"), "Loading...", () => { localStorage.removeItem("upskill_market_trends"); return loadMarketTrends(); }).catch((err) => toast(err.message, true))
+  withLoading($("#refreshTrends"), "Loading...", () => {
+    localStorage.removeItem("upskill_market_trends");
+    trendsLoaded = false;
+    return loadMarketTrends();
+  }).catch((err) => toast(err.message, true))
 );
 
 // Restore cached data
 const si = load("insights"); if (si) renderInsights(si.data, si.via);
 const st = load("track"); if (st) renderTrack(st.data, st.via, st.name, st.role);
-
-// Load market trends on page load
-loadMarketTrends();

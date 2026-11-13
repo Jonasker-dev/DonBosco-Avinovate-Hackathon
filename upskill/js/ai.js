@@ -2,7 +2,7 @@
 // Keys come from config.js globals (SECRET_CONFIG_1/2/3). Never log keys.
 import { MOCK } from "./data.js";
 
-export const ai = { useMock: false }; // flip to true (or use the UI toggle) for offline demos
+export const ai = { useMock: true }; // ON by default to save API quota; uncheck "Mock mode" for live AI
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const SKIP = [404, 429, 500, 503, 504];
 const KEYS = {

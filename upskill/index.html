@@ -14,20 +14,30 @@
         <button class="tab active" data-tab="hr" role="tab" aria-selected="true">HR Dashboard</button>
         <button class="tab" data-tab="emp" role="tab" aria-selected="false">Employee Dashboard</button>
       </div>
-      <label class="mock"><input type="checkbox" id="mockToggle"> Mock mode</label>
+      <label class="nav-toggle"><input type="checkbox" id="mockToggle" checked> Mock mode</label>
+      <button class="theme-btn" id="themeToggle" title="Toggle dark mode">🌙 Dark</button>
     </div>
   </header>
 
   <!-- ========= SIDEBAR: Live Market Demands ========= -->
   <aside class="sidebar" id="sidebar">
-    <h3><span class="pulse-dot"></span> Live Market Demands</h3>
-    <p class="muted" style="font-size:.8rem;margin:0 0 10px">Top trending skills this month</p>
-    <div id="marketTrends" class="trends-list">
-      <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
-      <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
-      <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
+    <div class="sidebar-toggle-row">
+      <h3><span class="pulse-dot"></span> Live Market Demands</h3>
+      <label class="toggle-switch" title="Toggle market trends">
+        <input type="checkbox" id="trendsToggle">
+        <span class="toggle-slider"></span>
+      </label>
     </div>
-    <button class="btn btn-sm" id="refreshTrends" style="margin-top:10px;width:100%">↻ Refresh</button>
+    <div class="sidebar-content" id="sidebarContent" style="display:none">
+      <p class="muted" style="font-size:.8rem;margin:0 0 10px">Top trending skills this month</p>
+      <div id="marketTrends" class="trends-list">
+        <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
+        <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
+        <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
+      </div>
+      <button class="btn btn-sm" id="refreshTrends" style="margin-top:10px;width:100%">↻ Refresh</button>
+    </div>
+    <div class="sidebar-off-msg" id="sidebarOff">Toggle on to view live market demand trends</div>
   </aside>
 
   <!-- ========= HR DASHBOARD ========= -->

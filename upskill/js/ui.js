@@ -1,4 +1,4 @@
-// UI helpers: toasts, button loading state, render helpers, tab switching. No API calls here.
+// UI helpers: toasts, button loading state, render helpers, tab switching, theme toggle. No API calls here.
 export const $ = (s) => document.querySelector(s);
 export const $$ = (s) => document.querySelectorAll(s);
 export const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -31,6 +31,22 @@ export function initTabs() {
       $$(".dash").forEach((d) => d.classList.remove("active"));
       $(`#${target === "hr" ? "hrDash" : "empDash"}`).classList.add("active");
     });
+  });
+}
+
+// Light / Dark theme toggle
+export function initThemeToggle() {
+  const btn = $("#themeToggle");
+  // Restore saved preference (default: light)
+  const saved = localStorage.getItem("upskill_theme");
+  if (saved === "dark") {
+    document.body.classList.add("dark");
+    btn.innerHTML = "☀️ Light";
+  }
+  btn.addEventListener("click", () => {
+    const isDark = document.body.classList.toggle("dark");
+    btn.innerHTML = isDark ? "☀️ Light" : "🌙 Dark";
+    try { localStorage.setItem("upskill_theme", isDark ? "dark" : "light"); } catch {}
   });
 }
 
