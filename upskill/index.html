@@ -6,39 +6,49 @@
   <title>UpskillAI · Enterprise skill-gap intelligence</title>
   <link rel="stylesheet" href="css/styles.css">
 </head>
-<body>
+<body class="landing">
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <!-- ========= SCREEN 1: LANDING ========= -->
+  <section id="landing">
+    <p class="eyebrow">Avinovate Hackathon · Problem Statement 4</p>
+    <h1>UpskillAI: future-proof your <em>workforce</em>.</h1>
+    <p class="muted">Spot skill gaps before they cost you, track what the market will demand next, and give every employee an AI-built path to the roles of tomorrow.</p>
+    <button class="btn btn-glow" id="launchBtn">Launch Dashboard →</button>
+    <div class="pills"><span>Skill-gap radar</span><span>Live market demand</span><span>AI upskill roadmaps</span></div>
+  </section>
+
+  <div id="demoBadge" role="status">⚠ DEMO MODE ACTIVE · sample data</div>
   <header class="nav">
-    <div class="brand"><span class="logo">◆</span> UpskillAI</div>
+    <div class="brand" id="brandHome" role="button" tabindex="0" title="Back to start"><span class="logo">◆</span> UpskillAI</div>
     <div class="nav-right">
       <div class="tabs" role="tablist">
         <button class="tab active" data-tab="hr" role="tab" aria-selected="true">HR Dashboard</button>
         <button class="tab" data-tab="emp" role="tab" aria-selected="false">Employee Dashboard</button>
       </div>
+      <button class="demand-btn" id="trendsBtn" aria-expanded="false" aria-controls="sidebar"><span class="pulse-dot"></span> Live Market Demand</button>
       <label class="nav-toggle"><input type="checkbox" id="mockToggle" checked> Mock mode</label>
       <button class="theme-btn" id="themeToggle" title="Toggle dark mode">🌙 Dark</button>
     </div>
   </header>
 
-  <!-- ========= SIDEBAR: Live Market Demands ========= -->
-  <aside class="sidebar" id="sidebar">
+  <!-- ========= SLIDE-IN DRAWER: Live Market Demand ========= -->
+  <aside class="sidebar" id="sidebar" aria-label="Live Market Demand">
     <div class="sidebar-toggle-row">
-      <h3><span class="pulse-dot"></span> Live Market Demands</h3>
-      <label class="toggle-switch" title="Toggle market trends">
-        <input type="checkbox" id="trendsToggle">
-        <span class="toggle-slider"></span>
-      </label>
+      <h3><span class="pulse-dot"></span> Live Market Demand</h3>
+      <button class="btn btn-ghost btn-sm" id="trendsClose" aria-label="Close">✕</button>
     </div>
-    <div class="sidebar-content" id="sidebarContent" style="display:none">
-      <p class="muted" style="font-size:.8rem;margin:0 0 10px">Top trending skills this month</p>
-      <div id="marketTrends" class="trends-list">
-        <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
-        <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
-        <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
-      </div>
-      <button class="btn btn-sm" id="refreshTrends" style="margin-top:10px;width:100%">↻ Refresh</button>
+    <p class="muted drawer-sub">Pick a category to see which skills employers are hiring for right now.</p>
+    <p class="gap-note" id="gapNote"></p>
+    <div id="trendCats" class="chips" role="group" aria-label="Skill category"></div>
+    <div id="marketTrends" class="trends-list">
+      <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
+      <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
+      <div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>
     </div>
-    <div class="sidebar-off-msg" id="sidebarOff">Toggle on to view live market demand trends</div>
+    <button class="btn btn-sm refresh-btn" id="refreshTrends">↻ Refresh</button>
   </aside>
+  <div class="scrim" id="scrim"></div>
 
   <!-- ========= HR DASHBOARD ========= -->
   <main id="hrDash" class="dash active">
@@ -51,7 +61,12 @@
     <section class="stats" id="stats" aria-label="Key metrics"></section>
 
     <section class="card">
-      <div class="card-head"><h2>Competency heatmap</h2><span class="muted">Scale 0–5 · target level shown in header</span></div>
+      <div class="card-head"><h2>Company skill radar</h2><button class="btn btn-ghost btn-sm" id="exportBtn">⬇ Export PDF</button></div>
+      <div class="radar-split"><div id="companyRadar" class="radar-wrap"></div><div id="radarCallout"></div></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Competency heatmap</h2><span class="muted">Click an employee for their AI pathway</span></div>
       <div class="scroll"><table id="heatmap"></table></div>
       <div id="gapBars" class="bars"></div>
     </section>
@@ -64,19 +79,7 @@
       <div id="insights" class="empty">Run the analysis to forecast emerging tech demand and a company-wide training pathway.</div>
     </section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>Personalized learning track</h2>
-        <div class="row">
-          <label class="sr" for="empSelect">Employee</label>
-          <select id="empSelect"></select>
-          <select id="roleSelect" aria-label="Target role"></select>
-          <button class="btn" id="trackBtn">Build track</button>
-        </div>
-      </div>
-      <div id="track" class="empty">Pick an employee and a next-gen role to generate a step-by-step track.</div>
-    </section>
-  </main>
+      </main>
 
   <!-- ========= EMPLOYEE DASHBOARD ========= -->
   <main id="empDash" class="dash">
@@ -111,6 +114,7 @@
           </div>
         </div>
         <div id="empSkillBars" class="emp-skill-bars"></div>
+        <div id="empRadar" class="radar-wrap"></div>
       </div>
     </section>
 
@@ -125,6 +129,22 @@
       <div id="empRoadmap" class="empty">Select a target role and click the button above to get your personalized 4-week AI roadmap.</div>
     </section>
   </main>
+
+  <!-- ========= SCREEN 3: EMPLOYEE PATHWAY MODAL ========= -->
+  <div class="modal" id="empModal" role="dialog" aria-modal="true" aria-labelledby="modalName">
+    <div class="modal-box">
+      <div class="card-head">
+        <div><h2 id="modalName">—</h2><span class="muted" id="modalRole">—</span></div>
+        <button class="btn btn-ghost btn-sm" id="modalClose" aria-label="Close">✕</button>
+      </div>
+      <div id="modalRadar" class="radar-wrap"></div>
+      <div class="row" style="margin:12px 0">
+        <select id="modalTargetRole" aria-label="Target role"></select>
+        <button class="btn" id="modalGenBtn">🚀 Generate 4-week roadmap</button>
+      </div>
+      <div id="modalRoadmap" class="empty">Pick a target role to generate this employee's roadmap.</div>
+    </div>
+  </div>
 
   <div id="toasts" aria-live="polite"></div>
 

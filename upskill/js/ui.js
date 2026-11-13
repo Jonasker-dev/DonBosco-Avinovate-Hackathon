@@ -50,16 +50,31 @@ export function initThemeToggle() {
   });
 }
 
-// Render market trend cards in the sidebar
-export function renderTrends(trends, via) {
-  const demandClass = { "Hot": "hot", "Rising": "rising", "Emerging": "emerging", "hot": "hot", "rising": "rising", "emerging": "emerging" };
-  $("#marketTrends").innerHTML = trends.map((t) => `
-    <div class="trend-card">
-      <h4>${esc(t.skill || t.name)}</h4>
-      <p>${esc(t.reason || t.description || t.why)}</p>
-      <span class="trend-demand ${demandClass[t.demand] || demandClass[t.level] || 'hot'}">${esc(t.demand || t.level || "Trending")}</span>
-    </div>
-  `).join("");
+// Category selector chips in the Live Market Demand drawer (active one is aria-pressed)
+export function renderCategoryChips(cats, active) {
+  $("#trendCats").innerHTML = cats.map((c) => `<button type="button" class="chip" data-cat="${esc(c)}" aria-pressed="${c === active}">${esc(c)}</button>`).join("");
+}
+
+// Placeholder cards while a category loads
+export function renderTrendSkeleton() {
+  $("#marketTrends").innerHTML = '<div class="trend-skeleton"><div class="skel-line"></div><div class="skel-line short"></div></div>'.repeat(3);
+}
+
+// Render market trend cards in the drawer: name + demand pill, optional growth figure, description
+export function renderTrends(trends, via, category) {
+  const cls = { Hot: "hot", Rising: "rising", Emerging: "emerging", Critical: "hot", High: "rising", Moderate: "emerging" };
+  const sample = String(via).startsWith("mock");
+  const head = `<div class="trend-meta">${category ? `<b>${esc(category)}</b>` : "<b>Top skills</b>"}<span class="tag ${sample ? "warn" : "ok"}">${sample ? "SAMPLE FEED" : "via " + esc(via)}</span></div>`;
+  $("#marketTrends").innerHTML = head + trends.map((t) => {
+    const level = t.urgency || t.demand || t.level || "Hot";
+    const note = t.desc || t.reason || t.description || t.why || "";
+    return `<div class="trend-card${t.gapHit ? " gap" : ""}">
+      ${t.gapHit ? '<div class="gap-flag">⚠ Critical Company Gap &amp; Market Surge</div>' : ""}
+      <div class="trend-top"><h4>${esc(t.skill || t.name)}</h4><span class="trend-demand ${cls[level] || "hot"}">${esc(level)}</span></div>
+      ${t.surge ? `<div class="surge">▲ ${esc(t.surge)} <small>demand growth</small></div>` : ""}
+      ${note ? `<p>${esc(note)}</p>` : ""}
+    </div>`;
+  }).join("");
 }
 
 // Render employee skill bars
@@ -76,9 +91,9 @@ export function renderEmpSkills(employee, skills) {
 }
 
 // Render the 4-week roadmap as beautiful week cards
-export function renderRoadmap(weeks, via) {
-  $("#empRoadmap").className = "";
-  $("#empRoadmap").innerHTML = `
+export function renderRoadmap(weeks, via, target = "#empRoadmap") {
+  $(target).className = "";
+  $(target).innerHTML = `
     <p class="muted" style="margin:0 0 4px">Your personalized 4-week upskill roadmap <span class="tag ok">via ${esc(via)}</span></p>
     <div class="roadmap-grid">
       ${weeks.map((w) => `
@@ -90,3 +105,7 @@ export function renderRoadmap(weeks, via) {
       `).join("")}
     </div>`;
 }
+
+// Honest fallback: show a corner badge whenever output is mock/sample data
+export function setDemo(on) { $("#demoBadge").classList.toggle("show", !!on); }
+export const isMock = (via) => String(via).startsWith("mock");

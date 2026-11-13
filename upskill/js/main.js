@@ -1,7 +1,9 @@
 // Entry point: renders both dashboards from seed data and wires all AI features.
-import { SKILLS, EMPLOYEES, NEXT_GEN_ROLES } from "./data.js";
-import { askAI, ai, generateUpskillRoadmap, fetchMarketTrends } from "./ai.js";
-import { $, $$, esc, toast, withLoading, initTabs, initThemeToggle, renderTrends, renderEmpSkills, renderRoadmap } from "./ui.js";
+import { SKILLS, EMPLOYEES, NEXT_GEN_ROLES, MARKET_CATEGORIES, matchesGap } from "./data.js";
+import { askAI, ai, generateUpskillRoadmap, fetchMarketTrends, normalizeRoadmap } from "./ai.js";
+import { initFX } from "./fx.js";
+import { radar } from "./radar.js";
+import { $, $$, esc, toast, withLoading, initTabs, initThemeToggle, renderTrends, renderTrendSkeleton, renderCategoryChips, renderEmpSkills, renderRoadmap, setDemo, isMock } from "./ui.js";
 
 // ========= HR DASHBOARD LOGIC =========
 const avg = (i) => EMPLOYEES.reduce((a, e) => a + e.s[i], 0) / EMPLOYEES.length;
@@ -19,7 +21,7 @@ function renderStats() {
 
 function renderHeatmap() {
   $("#heatmap").innerHTML = `<tr><th></th>${SKILLS.map((s) => `<th>${esc(s.name)}<br><small>target ${s.target}</small></th>`).join("")}</tr>` +
-    EMPLOYEES.map((e) => `<tr><td><b>${esc(e.name)}</b><br><small class="muted">${esc(e.role)}</small></td>${e.s.map((v) => `<td class="cell" style="background:${heat(v)}">${v}</td>`).join("")}</tr>`).join("");
+    EMPLOYEES.map((e) => `<tr data-emp="${e.id}" class="clickable"><td><b>${esc(e.name)}</b><br><small class="muted">${esc(e.role)}</small></td>${e.s.map((v) => `<td class="cell" style="background:${heat(v)}">${v}</td>`).join("")}</tr>`).join("");
   $("#gapBars").innerHTML = gaps.map((g) => {
     const c = g.gap >= 1.5 ? "var(--danger)" : g.gap >= 0.75 ? "var(--warning)" : "var(--success)";
     return `<div class="bar"><span>${esc(g.name)}</span><div class="track"><div class="fill" style="width:${(g.avg / 5) * 100}%;background:${c}"></div></div><span class="muted">${g.avg.toFixed(1)} / ${g.target}</span></div>`;
@@ -35,29 +37,13 @@ function renderInsights(d, via) {
     <h3 style="margin-top:18px">Future-proof training pathway</h3>
     <div class="grid">${(d.pathway || []).map((p) => `<div class="tile"><h3>${esc(p.phase)}</h3><ol class="steps">${(p.actions || []).map((a) => `<li>${esc(a)}</li>`).join("")}</ol></div>`).join("")}</div>`;
 }
-function renderTrack(d, via, name, role) {
-  $("#track").className = "";
-  $("#track").innerHTML = `<p><b>${esc(name)} → ${esc(role)}</b> ${tag("via " + via, "ok")}<br><span class="muted">${esc(d.headline)}</span></p>
-    <p>${(d.strengths || []).map((s) => tag(s, "ok")).join(" ")}</p>
-    <div class="grid">${(d.steps || []).map((s) => `<div class="tile">${tag(s.week)}<h3>${esc(s.title)}</h3><ol class="steps">${(s.resources || []).map((r) => `<li>${esc(r)}</li>`).join("")}</ol><p class="muted">Outcome: ${esc(s.outcome)}</p></div>`).join("")}</div>`;
-}
-
 async function analyze() {
   const prompt = `You are an L&D strategist. Skill gaps (avg level vs target, scale 0-5): ${gaps.map((g) => `${g.name} ${g.avg.toFixed(1)}/${g.target}`).join("; ")}.
-Return JSON: {"summary":string,"emerging":[{"tech":string,"horizon":"0-6 months|6-12 months|12-24 months","impact":"high|medium|low","why":string}] (3-4 items),"pathway":[{"phase":string,"actions":[string]}] (3 phases)}. Be concrete and tied to the gaps.`;
+Return JSON: {"summary":string,"emerging":[{"tech":string,"horizon":"0-6 months|6-12 months|12-24 months","impact":"high|medium|low","why":string}] (3-4 items),"pathway":[{"phase":string,"actions":[string]}] (3 phases)}. Be concrete and tied to the gaps. The single biggest gap is ${gaps[0].name} (${gaps[0].avg.toFixed(1)}/${gaps[0].target}): at least one emerging item and the first pathway phase must address it directly.`;
   const { data, via } = await askAI(prompt, "insights");
   if (!data.emerging || !data.pathway) throw new Error("Unexpected AI response shape");
-  save("insights", { data, via }); renderInsights(data, via); toast("Analysis ready via " + via);
+  setDemo(isMock(via)); save("insights", { data, via }); renderInsights(data, via); toast("Analysis ready via " + via);
 }
-async function buildTrack() {
-  const e = EMPLOYEES.find((x) => x.id == $("#empSelect").value), role = $("#roleSelect").value;
-  const prompt = `Create a 12-week learning track for ${e.name}, currently ${e.role}, moving to ${role}. Skill levels (0-5): ${SKILLS.map((s, i) => `${s.name} ${e.s[i]}`).join("; ")}.
-Return JSON: {"headline":string,"strengths":[string],"steps":[{"week":string,"title":string,"resources":[string],"outcome":string}] (3-4 steps)}. Prioritize their weakest skills relevant to the role.`;
-  const { data, via } = await askAI(prompt, "track");
-  if (!data.steps) throw new Error("Unexpected AI response shape");
-  save("track", { data, via, name: e.name, role }); renderTrack(data, via, e.name, role); toast("Learning track ready via " + via);
-}
-
 // ========= EMPLOYEE DASHBOARD LOGIC =========
 let loggedInEmployee = null;
 
@@ -78,6 +64,8 @@ function empLogin() {
 
   // Render skill bars
   renderEmpSkills(loggedInEmployee, SKILLS);
+  radar($("#empRadar"), names, targets, loggedInEmployee.s);
+  if (loggedInEmployee.target) $("#empRoadmapRole").value = loggedInEmployee.target;
 
   toast(`Welcome back, ${loggedInEmployee.name}!`);
 
@@ -95,68 +83,106 @@ function empLogout() {
   $("#empRoadmap").innerHTML = "Select a target role and click the button above to get your personalized 4-week AI roadmap.";
 }
 
-async function empGenerateRoadmap() {
-  if (!loggedInEmployee) return;
-  const role = $("#empRoadmapRole").value;
-  const knownSkills = SKILLS.filter((s, i) => loggedInEmployee.s[i] >= 3).map((s) => s.name).join(", ") || "general software development";
-
-  const { data, via } = await generateUpskillRoadmap(loggedInEmployee.name, loggedInEmployee.role, knownSkills, role);
-
-  // Handle both array and object responses
-  const weeks = Array.isArray(data) ? data : data.roadmap || data.weeks || data.steps || [];
+async function genRoadmap(emp, role, target) {
+  const knownSkills = SKILLS.filter((s, i) => emp.s[i] >= 3).map((s) => s.name).join(", ") || "general software development";
+  const { data, via } = await generateUpskillRoadmap(emp.name, emp.role, knownSkills, role, emp);
+  const weeks = normalizeRoadmap(data);
   if (!weeks.length) throw new Error("Unexpected AI response shape");
-
-  save("emp_roadmap_" + loggedInEmployee.id, { data: weeks, via });
-  renderRoadmap(weeks, via);
+  setDemo(isMock(via));
+  save("emp_roadmap_" + emp.id, { data: weeks, via });
+  renderRoadmap(weeks, via, target);
   toast("Your 4-week upskill path is ready via " + via);
 }
+const empGenerateRoadmap = () => loggedInEmployee && genRoadmap(loggedInEmployee, $("#empRoadmapRole").value, "#empRoadmap");
 
-// ========= MARKET TRENDS SIDEBAR =========
-let trendsLoaded = false;
+// ========= RADARS, MODAL, LANDING, EXPORT =========
+const names = SKILLS.map((s) => s.name), targets = SKILLS.map((s) => s.target);
+function renderCompanyRadar() {
+  radar($("#companyRadar"), names, targets, SKILLS.map((_, i) => +avg(i).toFixed(2)));
+  $("#radarCallout").innerHTML = `<h3>Biggest gaps</h3>` + gaps.slice(0, 3).map((g, i) => `<div class="tile"><span class="tag">#${i + 1}</span><h3>${esc(g.name)}</h3><span class="muted">Average ${g.avg.toFixed(1)} vs required ${g.target}</span></div>`).join("");
+}
+function openModal(emp) {
+  $("#modalName").textContent = emp.name; $("#modalRole").textContent = emp.role;
+  $("#empModal").dataset.emp = emp.id;
+  radar($("#modalRadar"), names, targets, emp.s);
+  if (emp.target) $("#modalTargetRole").value = emp.target;
+  const c = load("emp_roadmap_" + emp.id);
+  if (c) renderRoadmap(c.data, c.via, "#modalRoadmap");
+  else { $("#modalRoadmap").className = "empty"; $("#modalRoadmap").textContent = "Pick a target role to generate this employee's roadmap."; }
+  $("#empModal").classList.add("open");
+}
+const closeModal = () => $("#empModal").classList.remove("open");
+function initScreens() {
+  $("#modalTargetRole").innerHTML = NEXT_GEN_ROLES.map((r) => `<option>${esc(r)}</option>`).join("");
+  $("#heatmap").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-emp]"); if (tr) openModal(EMPLOYEES.find((x) => x.id == tr.dataset.emp)); });
+  $("#modalClose").addEventListener("click", closeModal);
+  $("#empModal").addEventListener("click", (e) => { if (e.target.id === "empModal") closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+  run("#modalGenBtn", "Generating...", () => genRoadmap(EMPLOYEES.find((x) => x.id == $("#empModal").dataset.emp), $("#modalTargetRole").value, "#modalRoadmap"));
+  $("#exportBtn").addEventListener("click", () => window.print());
+  // Landing: skip if already launched this session; brand click returns to it
+  const go = (on) => { document.body.classList.toggle("landing", on); try { sessionStorage.setItem("upskill_launched", on ? "" : "1"); } catch {} scrollTo(0, 0); };
+  if (sessionStorage.getItem("upskill_launched")) document.body.classList.remove("landing");
+  $("#launchBtn").addEventListener("click", () => go(false));
+  $("#brandHome").addEventListener("click", () => go(true));
+}
 
-async function loadMarketTrends() {
-  // Check localStorage cache first (1 hour TTL)
-  const cached = load("market_trends");
-  if (cached && Date.now() - cached.ts < 3600000) {
-    renderTrends(cached.data, cached.via);
-    trendsLoaded = true;
-    return;
+// ========= MARKET TRENDS DRAWER =========
+// One category at a time (chips). Live results are cached per category so re-clicking a chip is free.
+const TREND_TTL = 6 * 3600000; // 6 h: market demand does not change hourly, and this protects free-tier quota
+let trendCat = MARKET_CATEGORIES[0], trendsLoaded = false;
+const topGap = gaps[0]; // the company's biggest deficit (target minus team average), computed above from the heatmap data
+const SURGE = new Set(["Critical", "High", "Hot", "Rising"]);
+// Mark market skills that address the top company gap AND show strong demand
+const flagGap = (trends) => trends.map((t) => ({ ...t, gapHit: matchesGap(t, topGap.id) && SURGE.has(t.urgency || t.demand || t.level || "") }));
+
+async function loadMarketTrends(force = false) {
+  const cat = trendCat, key = "market_" + cat;
+  const cached = load(key);
+  // Cache applies to LIVE results only; mock is free and always re-rendered
+  if (!force && !ai.useMock && cached && Date.now() - cached.ts < TREND_TTL) {
+    renderTrends(flagGap(cached.data), cached.via, cat); trendsLoaded = true; return;
   }
-
+  renderTrendSkeleton();
   try {
-    const { data, via } = await fetchMarketTrends();
-    const trends = Array.isArray(data) ? data : data.trends || data.skills || [];
-    if (trends.length) {
-      renderTrends(trends, via);
-      save("market_trends", { data: trends, via, ts: Date.now() });
-      trendsLoaded = true;
-    }
+    const { data, via } = await fetchMarketTrends(cat, topGap);
+    const feed = Array.isArray(data) ? { skills: data } : data;
+    const trends = feed.skills || feed.trends || [];
+    if (!trends.length) throw new Error("Unexpected AI response shape");
+    if (!isMock(via)) save(key, { data: trends, via, ts: Date.now() });
+    if (cat !== trendCat) return; // user switched chip while this was loading
+    renderTrends(flagGap(trends), via, cat);
+    setDemo(isMock(via));
+    trendsLoaded = true;
   } catch (e) {
     console.warn("Market trends failed:", e.message);
-    if (cached) { renderTrends(cached.data, cached.via); trendsLoaded = true; }
+    if (cat !== trendCat) return;
+    if (cached) { renderTrends(flagGap(cached.data), cached.via, cat); trendsLoaded = true; }
+    else { $("#marketTrends").innerHTML = `<div class="empty">Could not load ${esc(cat)} trends. Try Refresh.</div>`; toast(e.message, true); }
   }
 }
 
 function initTrendsToggle() {
-  const toggle = $("#trendsToggle");
-  const content = $("#sidebarContent");
-  const offMsg = $("#sidebarOff");
-
-  // Off by default
-  toggle.checked = false;
-  content.style.display = "none";
-  offMsg.style.display = "";
-
-  toggle.addEventListener("change", () => {
-    if (toggle.checked) {
-      content.style.display = "";
-      offMsg.style.display = "none";
-      // Load trends only when toggled on (and not already loaded)
-      if (!trendsLoaded) loadMarketTrends();
-    } else {
-      content.style.display = "none";
-      offMsg.style.display = "";
-    }
+  const drawer = $("#sidebar"), btn = $("#trendsBtn"), scrim = $("#scrim");
+  renderCategoryChips(MARKET_CATEGORIES, trendCat);
+  $("#gapNote").innerHTML = `Biggest company gap: <b>${esc(topGap.name)}</b> (${topGap.avg.toFixed(1)} avg vs ${topGap.target} required). Matching in-demand skills are flagged.`;
+  const setOpen = (open) => {
+    drawer.classList.toggle("open", open);
+    scrim.classList.toggle("show", open);
+    btn.setAttribute("aria-expanded", String(open));
+    // Fetch only when the user opens the drawer (never on page load)
+    if (open && !trendsLoaded) loadMarketTrends();
+  };
+  btn.addEventListener("click", () => setOpen(!drawer.classList.contains("open")));
+  $("#trendsClose").addEventListener("click", () => setOpen(false));
+  scrim.addEventListener("click", () => setOpen(false));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
+  // Category selector: one delegated listener on the chip row
+  $("#trendCats").addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip"); if (!chip || chip.dataset.cat === trendCat) return;
+    trendCat = chip.dataset.cat;
+    renderCategoryChips(MARKET_CATEGORIES, trendCat);
+    loadMarketTrends();
   });
 }
 
@@ -170,10 +196,11 @@ initTabs();
 initThemeToggle();
 renderStats();
 renderHeatmap();
+renderCompanyRadar();
+setDemo(ai.useMock);
+initFX(); // after stats render so the count-up can run
 
-// HR selects
-$("#empSelect").innerHTML = EMPLOYEES.map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join("");
-$("#roleSelect").innerHTML = NEXT_GEN_ROLES.map((r) => `<option>${esc(r)}</option>`).join("");
+initScreens();
 
 // Employee login select
 $("#empLoginSelect").innerHTML = EMPLOYEES.map((e) => `<option value="${e.id}">${esc(e.name)} — ${esc(e.role)}</option>`).join("");
@@ -182,30 +209,26 @@ $("#empRoadmapRole").innerHTML = NEXT_GEN_ROLES.map((r) => `<option>${esc(r)}</o
 // Mock toggle — checked (on) by default in HTML, ai.useMock is true by default in ai.js
 $("#mockToggle").addEventListener("change", (e) => {
   ai.useMock = e.target.checked;
+  setDemo(ai.useMock);
+  trendsLoaded = false; // drawer re-fetches on next open so mock/live data never get mixed up
   toast(ai.useMock ? "Mock mode on — no API calls" : "⚡ Live AI on — will use API quota");
 });
 
 // HR buttons
 run("#analyzeBtn", "Analyzing with AI...", analyze);
-run("#trackBtn", "Building track...", buildTrack);
 
 // Employee buttons
 $("#empLoginBtn").addEventListener("click", empLogin);
 $("#empLogoutBtn").addEventListener("click", empLogout);
 run("#empRoadmapBtn", "Generating roadmap...", empGenerateRoadmap);
 
-// Sidebar: trends toggle (off by default, no auto-load)
+// Drawer: Live Market Demand (closed by default, no auto-load)
 initTrendsToggle();
 
-// Sidebar refresh button
+// Drawer refresh button: force a new fetch for the selected category (live = 1 API call)
 $("#refreshTrends").addEventListener("click", () =>
-  withLoading($("#refreshTrends"), "Loading...", () => {
-    localStorage.removeItem("upskill_market_trends");
-    trendsLoaded = false;
-    return loadMarketTrends();
-  }).catch((err) => toast(err.message, true))
+  withLoading($("#refreshTrends"), "Loading...", () => loadMarketTrends(true)).catch((err) => toast(err.message, true))
 );
 
 // Restore cached data
 const si = load("insights"); if (si) renderInsights(si.data, si.via);
-const st = load("track"); if (st) renderTrack(st.data, st.via, st.name, st.role);
