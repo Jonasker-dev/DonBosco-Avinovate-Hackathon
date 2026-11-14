@@ -73,3 +73,7 @@ Ananya Rao,Platform Engineer,4,3,2,3,2,4,2,1,MLOps Cloud Architect,Builds cloud 
 ```
 Scores are 0-5 (out-of-range values are clamped, blanks become 0, and the preview tells you). Skill columns may use the skill name or its short id (`cloud`, `data`, `genai`, `sec`, `web`, `api`, `prod`, `story`). `name` and the skill columns are the core; `role` is the job title. `target_role` is optional and must be one of the next-gen roles. Optional `description`, `yoe` (years of experience), `stack` and `notes` fill the employee profile (stack and notes also personalise the AI roadmap). `photo` is a file name or an image link: a file you upload with **Add photos** (matched by the name in this column, or by employee name if the column is empty), a file placed in the `Assets/` folder, or an `https://` link. Uploaded and `Assets/` photos are stored inside the database.
 Two download buttons in Manage data: **Current roster CSV** (everything now in the database, in this format) and **Demo CSV** (the built-in demo employees; also shipped as `seed/demo_employees.csv`).
+
+
+## Visual polish (v12)
+Particle background with cursor interaction and click sparks, cursor-following card glow, sliding tab pills, animated radar with scan sweep, heatmap with profile pictures, hover tooltips and a legend, and a Team roster whose cards enlarge into the centre of the screen on click. Styling lives at the end of `css/styles.css`, motion in `js/fx.js`. All of it respects `prefers-reduced-motion`.

@@ -15,7 +15,9 @@ catch (e) { showServerError(e); throw e; }
 function render() {
   const gaps = buildGaps(), top = gaps[0], names = SKILLS.map((s) => s.name), targets = SKILLS.map((s) => s.target);
   $("#landStats").innerHTML = [[EMPLOYEES.length, "Employees mapped"], [SKILLS.length, "Skills tracked"], [readiness() + "%", "Workforce readiness"]].map(([b, l]) => `<div><b>${b}</b><span>${l}</span></div>`).join("");
-  radar($("#landRadar"), names, targets, SKILLS.map((_, i) => +avg(i).toFixed(2)));
+  radar($("#landRadar"), names, targets, SKILLS.map((_, i) => +avg(i).toFixed(2)), { sweep: true });
+  const strip = names.map((n) => `<span>${esc(n)}</span>`).join(""); // skills ticker, doubled so the loop is seamless
+  $("#landMarquee").innerHTML = strip + strip + strip + strip;
   $("#chipGap").innerHTML = `<small>⚠ Biggest gap</small><b>${esc(top.name)}</b><small>${top.avg.toFixed(1)} avg vs ${top.target} required</small>`;
   $("#chipMarket").innerHTML = `<small>● Live Market Demand</small><b>${MARKET_CATEGORIES.length} skill categories</b><small>Web-grounded in live mode</small>`;
   $("#chipAI").innerHTML = `<small>🚀 Per-employee AI roadmap</small><b>4 weeks, personalised</b><small>Gemini → Groq → Meta fallback</small>`;

@@ -43,14 +43,21 @@ const metaLine = (e) => [e.yoe != null ? `${e.yoe} yr${e.yoe === 1 ? "" : "s"} e
 function renderStats() {
   const ready = readiness();
   const crit = gaps.filter((g) => g.gap >= 1.5).length;
-  $("#stats").innerHTML = [[ready + "%", "Workforce readiness"], [crit, "Critical skill gaps"], [EMPLOYEES.length, "Employees mapped"], [gaps[0].name, "Biggest gap"]]
-    .map(([b, l]) => `<div class="stat"><b>${esc(b)}</b><span>${l}</span></div>`).join("");
+  const ICO = { // small stroke icons (inline SVG, no dependency)
+    up: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+    warn: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  };
+  $("#stats").innerHTML = [[ready + "%", "Workforce readiness", "up"], [crit, "Critical skill gaps", "warn"], [EMPLOYEES.length, "Employees mapped", "users"], [gaps[0].name, "Biggest gap", "target"]]
+    .map(([b, l, ic], i) => `<div class="stat" style="--i:${i}"><span class="s-ico${i === 0 ? " ring" : ""}"${i === 0 ? ` style="--p:${ready}"` : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${ICO[ic]}</svg></span><b>${esc(b)}</b><span>${l}</span></div>`).join("");
   countUp("#stats .stat b"); // replay the count-up after a data change
 }
 
 // One heatmap table, used by the card and by the maximized view (so they can never differ)
+const lvl = (v) => Math.max(0, Math.min(5, Math.round(v)));
 const heatTable = () => `<thead><tr><th></th>${SKILLS.map((s) => `<th>${esc(s.name)}<br><small>target ${s.target}</small></th>`).join("")}</tr></thead><tbody>`
-  + EMPLOYEES.map((e) => `<tr data-emp="${e.id}" class="clickable"><td><b>${esc(e.name)}</b><br><small class="muted">${esc(e.role)}</small></td>${e.s.map((v) => `<td class="cell" style="background:${heat(v)}">${v}</td>`).join("")}</tr>`).join("") + `</tbody>`;
+  + EMPLOYEES.map((e, ri) => `<tr data-emp="${e.id}" class="clickable" tabindex="0" aria-label="${esc(e.name)}: open skill pathway"><td><div class="emp-cell">${avatarHTML(e, "xs")}<div class="emp-txt"><b>${esc(e.name)}</b><small class="muted">${esc(e.role)}</small></div></div></td>${e.s.map((v, ci) => { const d = SKILLS[ci].target - v; return `<td class="cell${d > 0 ? " low" + (d >= 2 ? " deep" : "") : ""}" data-v="${lvl(v)}" data-c="${ci}" style="--d:${ri * 45 + ci * 32}ms">${v}</td>`; }).join("")}</tr>`).join("") + `</tbody>`;
 
 function renderHeatmap() {
   const html = heatTable(), n = EMPLOYEES.length;
@@ -164,17 +171,22 @@ const empGenerateRoadmap = () => loggedInEmployee && genRoadmap(loggedInEmployee
 
 // ========= RADAR, MODALS, EXPORT =========
 function renderCompanyRadar() {
-  radar($("#companyRadar"), names, targets, SKILLS.map((_, i) => +avg(i).toFixed(2)));
+  radar($("#companyRadar"), names, targets, SKILLS.map((_, i) => +avg(i).toFixed(2)), { sweep: true });
   $("#radarCallout").innerHTML = `<h3>Biggest gaps</h3>` + gaps.slice(0, 3).map((g, i) => `<div class="tile"><span class="tag">#${i + 1}</span><h3>${esc(g.name)}</h3><span class="muted">Average ${g.avg.toFixed(1)} vs required ${g.target}</span><div class="tile-est">${esc(estText(estimate(skillIndex(g.id))))} <small>illustrative</small></div></div>`).join("");
 }
 
 // ========= TEAM ROSTER =========
+// Share of the required levels this person already meets (each skill capped at its target). Pure arithmetic on the roster.
+const empReadiness = (e) => { const need = SKILLS.reduce((a, s) => a + s.target, 0); return need ? Math.round((SKILLS.reduce((a, s, i) => a + Math.min(e.s[i], s.target), 0) / need) * 100) : 0; };
+const ICON_EXPAND = '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+
 function renderTeamRoster() {
+  forceCloseStage(); // the cards are about to be rebuilt
   const n = EMPLOYEES.length;
-  $("#rosterCount").textContent = `${n} employee${n === 1 ? "" : "s"}`;
-  $("#teamRoster").innerHTML = EMPLOYEES.map((e) => {
+  $("#rosterCount").textContent = `${n} employee${n === 1 ? "" : "s"} · click a card to enlarge it`;
+  $("#teamRoster").innerHTML = EMPLOYEES.map((e, i) => {
     const miniId = `mini-radar-${e.id}`;
-    return `<div class="roster-card">
+    return `<div class="roster-card" data-emp="${e.id}" style="--i:${i}" tabindex="0" role="button" aria-label="Enlarge ${esc(e.name)}">
       <div class="roster-card-top">
         ${avatarHTML(e, "roster")}
         <div class="roster-info">
@@ -185,6 +197,8 @@ function renderTeamRoster() {
       </div>
       ${e.desc ? `<p class="roster-desc">${esc(e.desc)}</p>` : ""}
       <div class="roster-radar" id="${miniId}"></div>
+      <span class="rc-ready"><b>${empReadiness(e)}%</b> ready</span>
+      <span class="rc-hint">${ICON_EXPAND} Enlarge</span>
     </div>`;
   }).join("");
   // Render mini radars after DOM is ready
@@ -194,6 +208,88 @@ function renderTeamRoster() {
       if (el) radar(el, names, targets, e.s);
     });
   });
+}
+
+// --- The enlarged employee card: grows out of the clicked card and lands in the centre of the screen (FLIP animation) ---
+const stage = $("#rxStage"), rxCard = stage.querySelector(".rx-card");
+let rxSrc = null, rxBusy = false;
+const rxIsOpen = () => stage.classList.contains("open");
+function stageHTML(e) {
+  const rows = SKILLS.map((s, i) => ({ s, v: e.s[i], d: s.target - e.s[i] }));
+  const best = [...rows].sort((a, b) => b.v - a.v || a.d - b.d).slice(0, 3);
+  const gapsTop = rows.filter((r) => r.d > 0).sort((a, b) => b.d - a.d).slice(0, 3);
+  const col = (r) => (r.v >= r.s.target ? "var(--success)" : r.v >= r.s.target * 0.6 ? "var(--warning)" : "var(--danger)");
+  const k = (() => { let n = 0; return () => `style="--k:${n++}"`; })(); // stagger index for the entrance animation
+  return `<button type="button" class="btn btn-ghost rx-close" aria-label="Close"><svg viewBox="0 0 24 24"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg></button>
+  <div class="rx-body">
+    <div class="rx-left">
+      <div class="rx-head">
+        ${avatarHTML(e, "hero")}
+        <div class="rx-anim" ${k()}>
+          <h2 id="rxName">${esc(e.name)}</h2>
+          <div class="rx-role">${esc(e.role)}</div>
+          <div class="rx-tags">${e.yoe != null ? `<span class="tag">📅 ${e.yoe} yr${e.yoe === 1 ? "" : "s"} experience</span>` : ""}${e.target ? `<span class="tag ok">🎯 ${esc(e.target)}</span>` : ""}</div>
+        </div>
+      </div>
+      ${e.desc ? `<p class="rx-desc rx-anim" ${k()}>${esc(e.desc)}</p>` : ""}
+      ${e.notes ? `<p class="rx-note rx-anim" ${k()}>${esc(e.notes)}</p>` : ""}
+      ${e.stack ? `<div class="rx-anim" ${k()}><p class="rx-sub">Current stack</p><div class="rx-chips">${String(e.stack).split(/[,;]\s*/).filter(Boolean).map((t) => `<span class="rx-chip">${esc(t)}</span>`).join("")}</div></div>` : ""}
+      <div class="rx-two rx-anim" ${k()}>
+        <div><p class="rx-sub">Strongest skills</p><div class="rx-chips">${best.map((r) => `<span class="rx-chip good">${esc(r.s.name)} <small>${r.v}/${r.s.target}</small></span>`).join("")}</div></div>
+        <div><p class="rx-sub">Biggest gaps</p><div class="rx-chips">${gapsTop.length ? gapsTop.map((r) => `<span class="rx-chip bad">${esc(r.s.name)} <small>−${r.d}</small></span>`).join("") : '<span class="rx-chip good">Meets every target</span>'}</div></div>
+      </div>
+      <div class="rx-actions rx-anim" ${k()}><button type="button" class="btn rx-path">🚀 Open AI pathway</button><button type="button" class="btn btn-ghost rx-dismiss">Close</button></div>
+    </div>
+    <div class="rx-right">
+      <div class="rx-ring rx-anim" style="--p:${empReadiness(e)};--k:2"><div><b>${empReadiness(e)}%</b><small>ready</small></div></div>
+      <div id="rxRadar" class="radar-wrap rx-anim" style="--k:3"></div>
+      <div class="rx-bars rx-anim" style="--k:4">${rows.map((r) => `<div class="emp-skill-bar"><span>${esc(r.s.name)}</span><div class="track"><div class="fill" style="width:${(r.v / 5) * 100}%;background:${col(r)}"></div></div><span class="muted">${r.v}/${r.s.target}</span></div>`).join("")}</div>
+    </div>
+  </div>`;
+}
+// transform that makes the centred card look exactly like the source card (or the reverse)
+const flipFrom = (src) => { const f = src.getBoundingClientRect(), t = rxCard.getBoundingClientRect(); return `translate(${f.left + f.width / 2 - (t.left + t.width / 2)}px,${f.top + f.height / 2 - (t.top + t.height / 2)}px) scale(${f.width / t.width},${f.height / t.height})`; };
+function openStage(src) {
+  const emp = EMPLOYEES.find((x) => x.id == src.dataset.emp);
+  if (!emp || rxBusy || rxIsOpen()) return;
+  rxSrc = src; rxBusy = true;
+  rxCard.innerHTML = stageHTML(emp);
+  rxCard.setAttribute("aria-labelledby", "rxName");
+  radar(rxCard.querySelector("#rxRadar"), names, targets, emp.s, { sweep: true });
+  stage.classList.remove("closing"); stage.classList.add("show", "open"); stage.setAttribute("aria-hidden", "false");
+  document.documentElement.classList.add("rx-lock");
+  const from = flipFrom(src);
+  src.classList.add("is-source");
+  const anim = rxCard.animate([{ transform: from, opacity: 0.35, borderRadius: "22px" }, { transform: "none", opacity: 1, borderRadius: "28px" }], { duration: 620, easing: "cubic-bezier(.2,.9,.25,1.04)" });
+  anim.finished.catch(() => {}).then(() => { rxBusy = false; });
+  rxCard.querySelector(".rx-close").focus({ preventScroll: true });
+}
+async function closeStage() {
+  if (!rxIsOpen() || rxBusy) return;
+  rxBusy = true; stage.classList.add("closing"); stage.classList.remove("open");
+  const src = rxSrc && document.body.contains(rxSrc) ? rxSrc : null;
+  const frames = src ? [{ transform: "none", opacity: 1 }, { transform: flipFrom(src), opacity: 0.2 }] : [{ transform: "none", opacity: 1 }, { transform: "scale(.92)", opacity: 0 }];
+  if (src) setTimeout(() => src.classList.remove("is-source"), 300);
+  await rxCard.animate(frames, { duration: 460, easing: "cubic-bezier(.55,0,.25,1)", fill: "forwards" }).finished.catch(() => {});
+  src?.classList.remove("is-source"); src?.focus({ preventScroll: true });
+  stage.classList.remove("show", "closing"); stage.setAttribute("aria-hidden", "true"); document.documentElement.classList.remove("rx-lock");
+  rxCard.getAnimations().forEach((a) => a.cancel()); rxCard.innerHTML = ""; rxSrc = null; rxBusy = false;
+}
+function forceCloseStage() { // instant, used when the roster is re-rendered underneath it
+  if (!rxIsOpen() && !stage.classList.contains("show")) return;
+  rxCard.getAnimations().forEach((a) => a.cancel());
+  stage.classList.remove("show", "open", "closing"); stage.setAttribute("aria-hidden", "true"); document.documentElement.classList.remove("rx-lock");
+  rxCard.innerHTML = ""; rxSrc = null; rxBusy = false;
+}
+function initRosterStage() {
+  const grid = $("#teamRoster");
+  grid.addEventListener("click", (e) => { const c = e.target.closest(".roster-card"); if (c) openStage(c); });
+  grid.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".roster-card")) { e.preventDefault(); openStage(e.target); } });
+  stage.addEventListener("click", (e) => {
+    if (e.target.closest(".rx-close,.rx-dismiss") || e.target.classList.contains("rx-backdrop") || e.target === stage) closeStage();
+    else if (e.target.closest(".rx-path")) { const emp = EMPLOYEES.find((x) => x.id == rxSrc?.dataset.emp); closeStage(); if (emp) setTimeout(() => openModal(emp), 280); }
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && rxIsOpen() && !$$(".modal.open").length) closeStage(); });
 }
 
 // --- Employee pathway modal (+ "Who can mentor?" for this person's biggest gaps) ---
@@ -207,7 +303,7 @@ function renderEmpMentors(emp) {
 }
 function openModal(emp) {
   $("#modalName").textContent = emp.name; $("#modalRole").textContent = emp.role; $("#modalMeta").textContent = metaLine(emp);
-  $("#modalAvatar").outerHTML = avatarHTML(emp, "sm", "modalAvatar");
+  $("#modalAvatar").outerHTML = avatarHTML(emp, "modal", "modalAvatar"); // 150% bigger than the old 40px picture (see --pfp-zoom in styles.css)
   $("#empModal").dataset.emp = emp.id;
   radar($("#modalRadar"), names, targets, emp.s);
   renderEmpMentors(emp);
@@ -218,6 +314,31 @@ function openModal(emp) {
   $("#empModal").classList.add("open");
 }
 const closeModal = () => $("#empModal").classList.remove("open");
+
+// --- Heatmap hover: highlights the whole column and shows a tooltip with the score against the required level ---
+function initHeatFX(table) {
+  const tip = $("#hmTip");
+  let col = -1;
+  const clearCol = () => { table.querySelectorAll(".col-hl").forEach((x) => x.classList.remove("col-hl")); col = -1; };
+  const place = (e) => {
+    const w = tip.offsetWidth, h = tip.offsetHeight; let x = e.clientX + 18, y = e.clientY + 18;
+    if (x + w > innerWidth - 10) x = e.clientX - w - 18; if (y + h > innerHeight - 10) y = e.clientY - h - 18;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  };
+  table.addEventListener("pointermove", (e) => {
+    const cell = e.target.closest("td.cell");
+    if (!cell) { tip.classList.remove("show"); clearCol(); return; }
+    const c = +cell.dataset.c, emp = EMPLOYEES.find((x) => x.id == cell.closest("tr").dataset.emp), sk = SKILLS[c];
+    if (c !== col) { clearCol(); table.querySelectorAll(`td.cell[data-c="${c}"]`).forEach((x) => x.classList.add("col-hl")); table.querySelectorAll("thead th")[c + 1]?.classList.add("col-hl"); col = c; }
+    const v = emp.s[c], d = sk.target - v;
+    tip.innerHTML = `<div class="tt-top"><b>${esc(emp.name)}</b><span>${esc(sk.name)}</span></div>
+      <div class="tt-main"><strong>${v}</strong><span>/ 5 · required ${sk.target}</span></div>
+      <div class="tt-meter">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= v ? "on" : ""}${n === sk.target ? " goal" : ""}"></i>`).join("")}</div>
+      <span class="tag ${d > 0 ? (d >= 2 ? "" : "warn") : "ok"}">${d > 0 ? `${d} level${d > 1 ? "s" : ""} below target` : d < 0 ? `${-d} above target` : "Meets target"}</span>`;
+    tip.classList.add("show"); place(e);
+  });
+  table.addEventListener("pointerleave", () => { tip.classList.remove("show"); clearCol(); });
+}
 
 // --- "Why this gap?" drill-down: who is below target, illustrative cost/time, who can mentor ---
 function mentorBlock(i, rows) {
@@ -254,9 +375,18 @@ function openGap(id) {
 
 function initScreens() {
   $("#modalTargetRole").innerHTML = NEXT_GEN_ROLES.map((r) => `<option>${esc(r)}</option>`).join("");
-  const openEmp = (e) => { const tr = e.target.closest("tr[data-emp]"); if (tr) openModal(EMPLOYEES.find((x) => x.id == tr.dataset.emp)); };
-  $("#heatmap").addEventListener("click", openEmp);
-  $("#heatmapMax").addEventListener("click", openEmp);
+  const openEmp = (e) => {
+    const tr = e.target.closest("tr[data-emp]"); if (!tr) return;
+    $$("tr.picked").forEach((r) => r.classList.remove("picked"));
+    $$(`tr[data-emp="${tr.dataset.emp}"]`).forEach((r) => r.classList.add("picked")); // this person's picture jumps to 150%
+    openModal(EMPLOYEES.find((x) => x.id == tr.dataset.emp));
+  };
+  for (const id of ["#heatmap", "#heatmapMax"]) {
+    $(id).addEventListener("click", openEmp);
+    $(id).addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches("tr[data-emp]")) { e.preventDefault(); openEmp(e); } });
+    initHeatFX($(id));
+  }
+  initRosterStage();
   // Maximize: the same table with every employee, no height cap
   const heatModal = $("#heatModal"), gapModal = $("#gapModal"), empModal = $("#empModal");
   $("#heatMaxBtn").addEventListener("click", () => heatModal.classList.add("open"));
@@ -265,7 +395,7 @@ function initScreens() {
   $("#gapBody").addEventListener("click", (e) => { const b = e.target.closest("button[data-emp]"); if (b) openModal(EMPLOYEES.find((x) => x.id == b.dataset.emp)); });
   // Close buttons, backdrop clicks, and Esc (one modal at a time: the front-most)
   [[heatModal, "#heatClose"], [gapModal, "#gapClose"], [empModal, "#modalClose"]].forEach(([m, btn]) => {
-    const close = () => m.classList.remove("open");
+    const close = () => { m.classList.remove("open"); if (m === empModal) $$("tr.picked").forEach((r) => r.classList.remove("picked")); };
     $(btn).addEventListener("click", close);
     m.addEventListener("click", (e) => { if (e.target === m) close(); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && isTopModal(m)) close(); });

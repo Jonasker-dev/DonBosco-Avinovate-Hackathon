@@ -8,6 +8,7 @@
 </head>
 <body>
   <!--BOOT-->
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
   <canvas id="fx" aria-hidden="true"></canvas>
 
   <!-- Print-only title block (filled by main.js right before printing) -->
@@ -82,6 +83,12 @@
           <span class="muted" id="heatCount">Click an employee for their AI pathway</span>
           <button class="btn btn-ghost btn-sm" id="heatMaxBtn" type="button" title="Show every employee at once">⤢ Maximize</button>
         </div>
+      </div>
+      <div class="heat-legend" aria-label="Heatmap legend">
+        <span class="hl-scale">Skill level <span class="hl-bar" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span> 1 → 5</span>
+        <span><i class="hl-dot"></i>1 level below target</span>
+        <span><i class="hl-dot deep"></i>2+ levels below target</span>
+        <span>Hover a cell for details · click a row for the AI pathway</span>
       </div>
       <div class="scroll heat-scroll"><table id="heatmap"></table></div>
       <div class="gaps-head">
@@ -161,6 +168,15 @@
       <div id="empRoadmap" class="empty">Select a target role and click the button above to get your personalized 4-week AI roadmap.</div>
     </section>
   </main>
+
+  <!-- ========= ENLARGED TEAM-ROSTER CARD (grows out of the clicked card, lands in the centre; keep before the modals so they open on top) ========= -->
+  <div class="rx-stage" id="rxStage" aria-hidden="true">
+    <div class="rx-backdrop"></div>
+    <div class="rx-card" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <!-- heatmap hover tooltip -->
+  <div class="hm-tip" id="hmTip" role="tooltip"></div>
 
   <!-- ========= MAXIMIZED HEATMAP: every employee at once ========= -->
   <div class="modal" id="heatModal" role="dialog" aria-modal="true" aria-labelledby="heatTitle">
